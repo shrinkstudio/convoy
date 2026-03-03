@@ -8,6 +8,7 @@ let lastScrollY = 0;
 let isHidden = false;
 let scrollThreshold = 50; // px of scroll before hiding
 let tween = null;
+let navResizeObserver = null;
 
 function onScroll({ scroll, direction }) {
   if (!nav) return;
@@ -65,6 +66,12 @@ function showNav() {
   }
 }
 
+// Expose nav height as a CSS custom property on :root
+function setNavHeightVar() {
+  if (!nav) return;
+  document.documentElement.style.setProperty('--nav-height', nav.offsetHeight + 'px');
+}
+
 // Native scroll fallback (when Lenis isn't available)
 let nativeHandler = null;
 
@@ -87,6 +94,11 @@ export function initNavScrollHide(scope) {
   if (typeof gsap !== 'undefined') {
     gsap.set(nav, { yPercent: 0 });
   }
+
+  // Set --nav-height CSS variable and watch for changes
+  setNavHeightVar();
+  navResizeObserver = new ResizeObserver(setNavHeightVar);
+  navResizeObserver.observe(nav);
 
   // Hook into Lenis if available (exposed as module-level `lenis` in transitions.js)
   if (window.__convoyLenis) {
@@ -123,6 +135,12 @@ export function destroyNavScrollHide() {
   if (nativeHandler) {
     window.removeEventListener('scroll', nativeHandler);
     nativeHandler = null;
+  }
+
+  // Stop watching nav height
+  if (navResizeObserver) {
+    navResizeObserver.disconnect();
+    navResizeObserver = null;
   }
 
   nav = null;
