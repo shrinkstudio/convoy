@@ -4,16 +4,28 @@
 // -----------------------------------------
 
 let nav = null;
+let banner = null;
+let bannerCollapsed = false;
 let lastScrollY = 0;
 let isHidden = false;
 let scrollThreshold = 50; // px of scroll before hiding
 let tween = null;
+let bannerTween = null;
 let navResizeObserver = null;
 
 function onScroll({ scroll, direction }) {
   if (!nav) return;
 
   const currentY = typeof scroll === 'number' ? scroll : window.scrollY;
+
+  // Banner: only visible at the very top of the page
+  if (banner) {
+    if (currentY <= scrollThreshold && bannerCollapsed) {
+      showBanner();
+    } else if (currentY > scrollThreshold && !bannerCollapsed) {
+      collapseBanner();
+    }
+  }
 
   // Always show nav at the top of the page
   if (currentY <= scrollThreshold) {
@@ -66,6 +78,46 @@ function showNav() {
   }
 }
 
+function collapseBanner() {
+  if (!banner || bannerCollapsed) return;
+  bannerCollapsed = true;
+
+  if (typeof gsap !== 'undefined') {
+    if (bannerTween) bannerTween.kill();
+    bannerTween = gsap.to(banner, {
+      height: 0,
+      opacity: 0,
+      duration: 0.3,
+      ease: 'power2.inOut',
+      overflow: 'hidden',
+    });
+  } else {
+    banner.style.height = '0';
+    banner.style.opacity = '0';
+    banner.style.overflow = 'hidden';
+  }
+}
+
+function showBanner() {
+  if (!banner || !bannerCollapsed) return;
+  bannerCollapsed = false;
+
+  if (typeof gsap !== 'undefined') {
+    if (bannerTween) bannerTween.kill();
+    bannerTween = gsap.to(banner, {
+      height: 'auto',
+      opacity: 1,
+      duration: 0.3,
+      ease: 'power2.out',
+      clearProps: 'overflow',
+    });
+  } else {
+    banner.style.height = '';
+    banner.style.opacity = '';
+    banner.style.overflow = '';
+  }
+}
+
 // Expose nav height as a CSS custom property on :root
 function setNavHeightVar() {
   if (!nav) return;
@@ -85,6 +137,10 @@ export function initNavScrollHide(scope) {
   scope = scope || document;
   nav = scope.querySelector('.nav');
   if (!nav) return;
+
+  // Find banner inside nav (if present)
+  banner = nav.querySelector('.nav-banner');
+  bannerCollapsed = false;
 
   // Reset state
   lastScrollY = window.scrollY;
@@ -125,6 +181,24 @@ export function destroyNavScrollHide() {
     tween.kill();
     tween = null;
   }
+
+  if (bannerTween) {
+    bannerTween.kill();
+    bannerTween = null;
+  }
+
+  // Reset banner to visible before transition
+  if (banner) {
+    if (typeof gsap !== 'undefined') {
+      gsap.set(banner, { clearProps: 'height,opacity,overflow' });
+    } else {
+      banner.style.height = '';
+      banner.style.opacity = '';
+      banner.style.overflow = '';
+    }
+  }
+  banner = null;
+  bannerCollapsed = false;
 
   // Remove Lenis listener
   if (window.__convoyLenis) {
