@@ -9,6 +9,7 @@ import { initTabs, destroyTabs } from './tabs.js';
 import { initSliders, destroySliders } from './slider.js';
 import { initInlineVideos, destroyInlineVideos } from './inline-video.js';
 import { initModalDelegation, initModals, destroyModals } from './modal.js';
+import { initFontSizeDetect, initFooterYear, initSkipLink } from './utilities.js';
 
 gsap.registerPlugin(CustomEase);
 
@@ -46,6 +47,8 @@ function initOnceFunctions() {
 
   // Document-level delegation (bind once)
   initModalDelegation();
+  initFontSizeDetect();
+  initSkipLink();
 }
 
 function initBeforeEnterFunctions(next) {
@@ -69,6 +72,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-slider]'))           initSliders(nextPage);
   if (has('[data-video]'))            initInlineVideos(nextPage);
   if (has('dialog'))                  initModals(nextPage);
+  if (has('[data-footer-year]'))       initFooterYear(nextPage);
 
   // Webflow IX2 reinit — fixes native nav dropdowns
   if (window.Webflow && window.Webflow.ready) {
