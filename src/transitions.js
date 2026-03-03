@@ -11,6 +11,7 @@ import { initInlineVideos, destroyInlineVideos } from './inline-video.js';
 import { initModalDelegation, initModals, destroyModals } from './modal.js';
 import { initFontSizeDetect, initFooterYear, initSkipLink } from './utilities.js';
 import { initNavScrollHide, destroyNavScrollHide } from './nav.js';
+import { initBunnyBackground, destroyBunnyBackground } from './bunny-video.js';
 
 gsap.registerPlugin(CustomEase);
 
@@ -61,6 +62,7 @@ function initBeforeEnterFunctions(next) {
   destroyTabs();
   destroySliders();
   destroyInlineVideos();
+  destroyBunnyBackground();
   destroyModals();
 }
 
@@ -74,6 +76,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-tabs-component]'))   initTabs(nextPage);
   if (has('[data-slider]'))           initSliders(nextPage);
   if (has('[data-video]'))            initInlineVideos(nextPage);
+  if (has('[data-bunny-background-init]')) initBunnyBackground(nextPage);
   if (has('dialog'))                  initModals(nextPage);
   if (has('[data-footer-year]'))       initFooterYear(nextPage);
 
