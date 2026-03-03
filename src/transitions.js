@@ -85,13 +85,15 @@ function runPageLeaveAnimation(current, next) {
 
   const transitionWrap = document.querySelector("[data-transition-wrap]");
   const transitionMiddle = transitionWrap.querySelector("[data-transition-middle]");
-  const navigation = next.querySelector(".demo-nav");
+  const navigation = next.querySelector(".nav");
 
   const tl = gsap.timeline({
     onComplete: () => {
       wrapper.remove();
       gsap.set(parent, { clearProps: "perspective,transformStyle,overflow" });
       gsap.set(next, { clearProps: "position,inset,width,height,zIndex,transformStyle,willChange,backfaceVisibility,transform" });
+      gsap.set(transitionWrap, { autoAlpha: 0, pointerEvents: "none", zIndex: -1 });
+      gsap.set(transitionMiddle, { clearProps: "willChange,scale,yPercent,clipPath" });
     },
   });
 
@@ -227,6 +229,8 @@ function prepareForTransition(parent, current, next){
 
   gsap.set(transitionWrap, {
     zIndex: 2,
+    autoAlpha: 1,
+    pointerEvents: "auto",
   });
 
   gsap.set(transitionMiddle, {
