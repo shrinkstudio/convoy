@@ -12,8 +12,11 @@ import { initModalDelegation, initModals, destroyModals } from './modal.js';
 import { initFontSizeDetect, initFooterYear, initSkipLink } from './utilities.js';
 import { initNavScrollHide, destroyNavScrollHide } from './nav.js';
 import { initBunnyBackground, destroyBunnyBackground } from './bunny-video.js';
+import { initParallax, destroyParallax } from './parallax.js';
+import { initStackingCards, destroyStackingCards } from './stacking-cards.js';
 
 gsap.registerPlugin(CustomEase);
+if (typeof ScrollTrigger !== 'undefined') gsap.registerPlugin(ScrollTrigger);
 
 history.scrollRestoration = "manual";
 
@@ -63,6 +66,8 @@ function initBeforeEnterFunctions(next) {
   destroySliders();
   destroyInlineVideos();
   destroyBunnyBackground();
+  destroyParallax();
+  destroyStackingCards();
   destroyModals();
 }
 
@@ -78,6 +83,8 @@ function initAfterEnterFunctions(next) {
   if (has('[data-video]'))            initInlineVideos(nextPage);
   if (has('[data-bunny-background-init]')) initBunnyBackground(nextPage);
   if (has('dialog'))                  initModals(nextPage);
+  if (has('[data-parallax="trigger"]')) initParallax(nextPage);
+  if (has('[data-stacking-cards-item]')) initStackingCards(nextPage);
   if (has('[data-footer-year]'))       initFooterYear(nextPage);
 
   // Webflow IX2 reinit — fixes native nav dropdowns
