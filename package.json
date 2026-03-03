@@ -1,0 +1,12 @@
+{
+  "name": "convoy",
+  "version": "1.0.0",
+  "description": "Scripts for Webflow builds, served via JSDelivr",
+  "scripts": {
+    "build": "node build.js",
+    "watch": "node build.js --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
