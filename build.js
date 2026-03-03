@@ -5,15 +5,8 @@ const path = require('path');
 const srcDir = path.join(__dirname, 'src');
 const watch = process.argv.includes('--watch');
 
-// Find all .js files in src/
-const entryPoints = fs.readdirSync(srcDir)
-  .filter(f => f.endsWith('.js'))
-  .map(f => path.join(srcDir, f));
-
-if (entryPoints.length === 0) {
-  console.log('No .js files found in src/');
-  process.exit(0);
-}
+// Single entry point — all scripts are imported via index.js
+const entryPoints = [path.join(srcDir, 'index.js')];
 
 const buildOptions = {
   entryPoints,
