@@ -10,6 +10,7 @@ import { initSliders, destroySliders } from './slider.js';
 import { initInlineVideos, destroyInlineVideos } from './inline-video.js';
 import { initModalDelegation, initModals, destroyModals } from './modal.js';
 import { initFontSizeDetect, initFooterYear, initSkipLink } from './utilities.js';
+import { initNavScrollHide, destroyNavScrollHide } from './nav.js';
 
 gsap.registerPlugin(CustomEase);
 
@@ -55,6 +56,7 @@ function initBeforeEnterFunctions(next) {
   nextPage = next || document;
 
   // Destroy old instances before new page enters
+  destroyNavScrollHide();
   destroyAccordions();
   destroyTabs();
   destroySliders();
@@ -66,6 +68,7 @@ function initAfterEnterFunctions(next) {
   nextPage = next || document;
 
   // Init components on new page
+  if (has('.nav'))                     initNavScrollHide(nextPage);
   if (has('[data-theme-toggle]'))     initThemeToggle(nextPage);
   if (has('details'))                 initAccordions(nextPage);
   if (has('[data-tabs-component]'))   initTabs(nextPage);
@@ -396,6 +399,9 @@ function initLenis() {
     lerp: 0.165,
     wheelMultiplier: 1.25,
   });
+
+  // Expose for nav scroll hide and other scripts
+  window.__convoyLenis = lenis;
 
   if (hasScrollTrigger) {
     lenis.on("scroll", ScrollTrigger.update);
