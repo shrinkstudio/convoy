@@ -122,7 +122,7 @@ function runPageLeaveAnimation(current, next) {
     onComplete: () => {
       wrapper.remove();
       gsap.set(parent, { clearProps: "perspective,transformStyle,overflow" });
-      gsap.set(next, { clearProps: "position,inset,width,height,zIndex,transformStyle,willChange,backfaceVisibility,transform" });
+      gsap.set(next, { clearProps: "position,inset,width,height,overflow,zIndex,transformStyle,willChange,backfaceVisibility,transform,clipPath" });
       gsap.set(transitionWrap, { autoAlpha: 0, pointerEvents: "none", zIndex: -1 });
       gsap.set(transitionMiddle, { clearProps: "willChange,scale,yPercent,clipPath" });
     },
@@ -208,8 +208,9 @@ function runPageEnterAnimation(next){
     return new Promise(resolve => tl.call(resolve, null, "pageReady"));
   }
 
+  // Don't call resetPage here — the leave animation's onComplete handles cleanup.
+  // Calling it at time 0 strips position:fixed from next, pulling it out of the card stack.
   tl.add("pageReady");
-  tl.call(resetPage, [next], "pageReady");
 
   return new Promise(resolve => {
     tl.call(resolve, null, "pageReady");
