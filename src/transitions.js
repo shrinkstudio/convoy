@@ -3,6 +3,13 @@
 // Barba.js + GSAP + Lenis + Card-Stack Transition
 // -----------------------------------------
 
+import { initThemeToggle } from './theme-toggle.js';
+import { initAccordions, destroyAccordions } from './accordion.js';
+import { initTabs, destroyTabs } from './tabs.js';
+import { initSliders, destroySliders } from './slider.js';
+import { initInlineVideos, destroyInlineVideos } from './inline-video.js';
+import { initModalDelegation, initModals, destroyModals } from './modal.js';
+
 gsap.registerPlugin(CustomEase);
 
 history.scrollRestoration = "manual";
@@ -37,22 +44,36 @@ function initOnceFunctions() {
   if (onceFunctionsInitialized) return;
   onceFunctionsInitialized = true;
 
-  // Runs once on first load
-  // if (has('[data-something]')) initSomething();
+  // Document-level delegation (bind once)
+  initModalDelegation();
 }
 
 function initBeforeEnterFunctions(next) {
   nextPage = next || document;
 
-  // Runs before the enter animation
-  // if (has('[data-something]')) initSomething();
+  // Destroy old instances before new page enters
+  destroyAccordions();
+  destroyTabs();
+  destroySliders();
+  destroyInlineVideos();
+  destroyModals();
 }
 
 function initAfterEnterFunctions(next) {
   nextPage = next || document;
 
-  // Runs after enter animation completes
-  // if (has('[data-something]')) initSomething();
+  // Init components on new page
+  if (has('[data-theme-toggle]'))     initThemeToggle(nextPage);
+  if (has('details'))                 initAccordions(nextPage);
+  if (has('[data-tabs-component]'))   initTabs(nextPage);
+  if (has('[data-slider]'))           initSliders(nextPage);
+  if (has('[data-video]'))            initInlineVideos(nextPage);
+  if (has('dialog'))                  initModals(nextPage);
+
+  // Webflow IX2 reinit — fixes native nav dropdowns
+  if (window.Webflow && window.Webflow.ready) {
+    window.Webflow.ready();
+  }
 
   if(hasLenis){
     lenis.resize();

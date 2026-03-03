@@ -3,8 +3,9 @@
 // Import all scripts here in the order they should run.
 // -----------------------------------------
 
-import './transitions.js';
+// Theme flash prevention — runs immediately at bundle load time
+import './theme-toggle.js';
 
-// Future scripts:
-// import './nav.js';
-// import './animations.js';
+// Core transition system (Barba + GSAP + Lenis)
+// Also imports and registers all MAST components in the function registry
+import './transitions.js';
