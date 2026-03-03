@@ -12,6 +12,7 @@ let scrollThreshold = 50; // px of scroll before hiding
 let tween = null;
 let bannerTween = null;
 let navResizeObserver = null;
+let bannerTransitioning = false;
 
 function onScroll({ scroll, direction }) {
   if (!nav) return;
@@ -81,6 +82,7 @@ function showNav() {
 function collapseBanner() {
   if (!banner || bannerCollapsed) return;
   bannerCollapsed = true;
+  bannerTransitioning = true;
 
   if (typeof gsap !== 'undefined') {
     if (bannerTween) bannerTween.kill();
@@ -90,17 +92,20 @@ function collapseBanner() {
       duration: 0.3,
       ease: 'power2.inOut',
       overflow: 'hidden',
+      onComplete: () => { bannerTransitioning = false; },
     });
   } else {
     banner.style.height = '0';
     banner.style.opacity = '0';
     banner.style.overflow = 'hidden';
+    bannerTransitioning = false;
   }
 }
 
 function showBanner() {
   if (!banner || !bannerCollapsed) return;
   bannerCollapsed = false;
+  bannerTransitioning = true;
 
   if (typeof gsap !== 'undefined') {
     if (bannerTween) bannerTween.kill();
@@ -110,18 +115,25 @@ function showBanner() {
       duration: 0.3,
       ease: 'power2.out',
       clearProps: 'overflow',
+      onComplete: () => { bannerTransitioning = false; },
     });
   } else {
     banner.style.height = '';
     banner.style.opacity = '';
     banner.style.overflow = '';
+    bannerTransitioning = false;
   }
 }
 
 // Expose nav height as a CSS custom property on :root
+// Excludes the banner so the value stays stable when the banner collapses
 function setNavHeightVar() {
-  if (!nav) return;
-  document.documentElement.style.setProperty('--nav-height', nav.offsetHeight + 'px');
+  if (!nav || bannerTransitioning) return;
+  let height = nav.offsetHeight;
+  if (banner && !bannerCollapsed) {
+    height -= banner.offsetHeight;
+  }
+  document.documentElement.style.setProperty('--nav-height', height + 'px');
 }
 
 // Native scroll fallback (when Lenis isn't available)
@@ -199,6 +211,7 @@ export function destroyNavScrollHide() {
   }
   banner = null;
   bannerCollapsed = false;
+  bannerTransitioning = false;
 
   // Remove Lenis listener
   if (window.__convoyLenis) {
