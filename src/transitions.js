@@ -14,6 +14,8 @@ import { initNavScrollHide, destroyNavScrollHide } from './nav.js';
 import { initBunnyBackground, destroyBunnyBackground } from './bunny-video.js';
 import { initParallax, destroyParallax } from './parallax.js';
 import { initStackingCards, destroyStackingCards } from './stacking-cards.js';
+import { initFooterParallax, destroyFooterParallax } from './footer-parallax.js';
+import { initCopyClip, destroyCopyClip } from './copy-clip.js';
 
 gsap.registerPlugin(CustomEase);
 if (typeof ScrollTrigger !== 'undefined') gsap.registerPlugin(ScrollTrigger);
@@ -68,6 +70,8 @@ function initBeforeEnterFunctions(next) {
   destroyBunnyBackground();
   destroyParallax();
   destroyStackingCards();
+  destroyFooterParallax();
+  destroyCopyClip();
   destroyModals();
 }
 
@@ -85,7 +89,9 @@ function initAfterEnterFunctions(next) {
   if (has('dialog'))                  initModals(nextPage);
   if (has('[data-parallax="trigger"]')) initParallax(nextPage);
   if (has('[data-stacking-cards-item]')) initStackingCards(nextPage);
+  if (has('[data-footer-parallax]'))   initFooterParallax(nextPage);
   if (has('[data-footer-year]'))       initFooterYear(nextPage);
+  if (has('[data-copy="trigger"]'))   initCopyClip(nextPage);
 
   // Webflow IX2 reinit — fixes native nav dropdowns
   if (window.Webflow && window.Webflow.ready) {
