@@ -46,6 +46,7 @@ export function initStickyFeatures(scope) {
     }
 
     // Initial state
+    gsap.set(w, { position: "relative", zIndex: 10 });
     if (visualWraps[0]) gsap.set(visualWraps[0], { clipPath: "inset(0% round 0.75em)" });
     gsap.set(items[0], { autoAlpha: 1 });
     if (pages[0]) pages[0].classList.add("is-active");
