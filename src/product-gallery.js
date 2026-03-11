@@ -1,73 +1,11 @@
 // -----------------------------------------
 // PRODUCT GALLERY
-// Piggybacks on Smootify's product="media" rendering,
-// then builds Osmo parallax slideshow from the injected images
+// Reads Smootify-duplicated images, restructures
+// into Osmo parallax slideshow with thumbnails
 // -----------------------------------------
 
 let instances = [];
-let mutationObserver = null;
-
-function buildGallery(wrapper, imageUrls) {
-  const slideList = wrapper.querySelector('.img-slider__list');
-  const thumbNav = wrapper.querySelector('.img-slider__nav');
-
-  if (!slideList || !thumbNav) return null;
-
-  // Grab templates (first slide + first thumb), then clear containers
-  const slideTemplate = slideList.querySelector('.img-slide');
-  const thumbTemplate = thumbNav.querySelector('.img-slider__thumb');
-
-  if (!slideTemplate || !thumbTemplate) return null;
-
-  // Clear existing placeholder content
-  slideList.innerHTML = '';
-  thumbNav.innerHTML = '';
-
-  imageUrls.forEach((url, i) => {
-    // Build slide
-    const slide = slideTemplate.cloneNode(true);
-    slide.classList.remove('is--current');
-    slide.setAttribute('data-slideshow', 'slide');
-    const slideImg = slide.querySelector('.img-slide__inner');
-    if (slideImg) {
-      slideImg.src = url;
-      slideImg.alt = '';
-      slideImg.setAttribute('data-slideshow', 'parallax');
-      slideImg.setAttribute('draggable', 'false');
-      slideImg.removeAttribute('srcset');
-      slideImg.removeAttribute('sizes');
-      slideImg.setAttribute('width', '960');
-      slideImg.setAttribute('loading', i === 0 ? 'eager' : 'lazy');
-    }
-    slideList.appendChild(slide);
-
-    // Build thumb
-    const thumb = thumbTemplate.cloneNode(true);
-    thumb.classList.remove('is--current');
-    thumb.setAttribute('data-slideshow', 'thumb');
-    const thumbImg = thumb.querySelector('.slider-thumb__img');
-    if (thumbImg) {
-      thumbImg.src = resizeShopifyImage(url, '200x');
-      thumbImg.alt = '';
-      thumbImg.removeAttribute('srcset');
-      thumbImg.removeAttribute('sizes');
-      thumbImg.setAttribute('loading', 'lazy');
-    }
-    thumbNav.appendChild(thumb);
-  });
-
-  // Init Osmo slideshow on this wrapper
-  return initSlideShow(wrapper);
-}
-
-function resizeShopifyImage(url, size) {
-  if (!url) return url;
-  const match = url.match(/(.+)(\.[a-zA-Z]+)(\?.*)?$/);
-  if (match) {
-    return `${match[1]}_${size}${match[2]}${match[3] || ''}`;
-  }
-  return url;
-}
+let pollTimer = null;
 
 function initSlideShow(el) {
   gsap.registerPlugin(Observer, CustomEase);
@@ -91,15 +29,11 @@ function initSlideShow(el) {
   let obs;
   const animationDuration = 0.9;
 
-  ui.slides.forEach((slide, index) => {
-    slide.setAttribute('data-index', index);
-  });
-  ui.thumbs.forEach((thumb, index) => {
-    thumb.setAttribute('data-index', index);
-  });
+  ui.slides.forEach((slide, i) => slide.setAttribute('data-index', i));
+  ui.thumbs.forEach((thumb, i) => thumb.setAttribute('data-index', i));
 
-  ui.slides[current].classList.add('is--current');
-  if (ui.thumbs[current]) ui.thumbs[current].classList.add('is--current');
+  ui.slides[0].classList.add('is--current');
+  if (ui.thumbs[0]) ui.thumbs[0].classList.add('is--current');
 
   function navigate(direction, targetIndex = null) {
     if (animating) return;
@@ -107,49 +41,37 @@ function initSlideShow(el) {
     obs.disable();
 
     const previous = current;
-    current =
-      targetIndex !== null && targetIndex !== undefined
-        ? targetIndex
-        : direction === 1
-          ? current < length - 1 ? current + 1 : 0
-          : current > 0 ? current - 1 : length - 1;
-
-    const currentSlide = ui.slides[previous];
-    const currentInner = ui.inner[previous];
-    const upcomingSlide = ui.slides[current];
-    const upcomingInner = ui.inner[current];
+    current = targetIndex != null
+      ? targetIndex
+      : direction === 1
+        ? (current + 1) % length
+        : (current - 1 + length) % length;
 
     gsap.timeline({
-      defaults: {
-        duration: animationDuration,
-        ease: 'slideshow-wipe'
-      },
+      defaults: { duration: animationDuration, ease: 'slideshow-wipe' },
       onStart() {
-        upcomingSlide.classList.add('is--current');
+        ui.slides[current].classList.add('is--current');
         if (ui.thumbs[previous]) ui.thumbs[previous].classList.remove('is--current');
         if (ui.thumbs[current]) ui.thumbs[current].classList.add('is--current');
       },
       onComplete() {
-        currentSlide.classList.remove('is--current');
+        ui.slides[previous].classList.remove('is--current');
         animating = false;
         setTimeout(() => obs.enable(), animationDuration);
       }
     })
-      .to(currentSlide, { xPercent: -direction * 100 }, 0)
-      .to(currentInner, { xPercent: direction * 50 }, 0)
-      .fromTo(upcomingSlide, { xPercent: direction * 100 }, { xPercent: 0 }, 0)
-      .fromTo(upcomingInner, { xPercent: -direction * 50 }, { xPercent: 0 }, 0);
-  }
-
-  function onClick(event) {
-    const targetIndex = parseInt(event.currentTarget.getAttribute('data-index'), 10);
-    if (targetIndex === current || animating) return;
-    const direction = targetIndex > current ? 1 : -1;
-    navigate(direction, targetIndex);
+      .to(ui.slides[previous], { xPercent: -direction * 100 }, 0)
+      .to(ui.inner[previous], { xPercent: direction * 50 }, 0)
+      .fromTo(ui.slides[current], { xPercent: direction * 100 }, { xPercent: 0 }, 0)
+      .fromTo(ui.inner[current], { xPercent: -direction * 50 }, { xPercent: 0 }, 0);
   }
 
   ui.thumbs.forEach(thumb => {
-    thumb.addEventListener('click', onClick);
+    thumb.addEventListener('click', (e) => {
+      const idx = parseInt(e.currentTarget.getAttribute('data-index'), 10);
+      if (idx === current || animating) return;
+      navigate(idx > current ? 1 : -1, idx);
+    });
   });
 
   obs = Observer.create({
@@ -157,11 +79,11 @@ function initSlideShow(el) {
     type: 'wheel,touch,pointer',
     onLeft: () => { if (!animating) navigate(1); },
     onRight: () => { if (!animating) navigate(-1); },
-    onWheel: (event) => {
+    onWheel: (e) => {
       if (animating) return;
-      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
-        if (event.deltaX > 50) navigate(1);
-        else if (event.deltaX < -50) navigate(-1);
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        if (e.deltaX > 50) navigate(1);
+        else if (e.deltaX < -50) navigate(-1);
       }
     },
     wheelSpeed: -1,
@@ -171,79 +93,64 @@ function initSlideShow(el) {
   return {
     destroy() {
       if (obs) obs.kill();
-      ui.thumbs.forEach(thumb => {
-        thumb.removeEventListener('click', onClick);
-      });
     }
   };
 }
 
-// Find the Smootify media source — a hidden container in the Webflow
-// markup with img[product="media"] inside smootify-product
-function findMediaSource() {
-  return document.querySelector('.product-media-source')
-    || document.querySelector('[product="media"]')?.parentElement;
-}
+function restructureGallery(wrapper) {
+  const slideList = wrapper.querySelector('.img-slider__list');
+  const thumbNav = wrapper.querySelector('.img-slider__nav');
+  if (!slideList || !thumbNav) return null;
 
-// Watch for Smootify to clone images into the source container
-function watchForMedia(source, wrappers) {
-  // Check if images are already there (Smootify may have already run)
-  const existingImages = collectImageUrls(source);
-  if (existingImages.length > 0) {
-    wrappers.forEach(wrap => {
-      const instance = buildGallery(wrap, existingImages);
-      if (instance) instances.push(instance);
-    });
-    return;
-  }
+  // Smootify duplicated imgs inside the single .img-slide
+  const sourceSlide = slideList.querySelector('.img-slide');
+  if (!sourceSlide) return null;
 
-  // Watch for Smootify to add/modify images
-  let settled = false;
-  let settleTimer = null;
+  const imgs = Array.from(sourceSlide.querySelectorAll('.img-slide__inner'));
+  if (imgs.length <= 1) return null; // Not yet duplicated or only 1 image
 
-  mutationObserver = new MutationObserver(() => {
-    if (settled) return;
+  // Get all image URLs
+  const urls = imgs.map(img => img.getAttribute('src')).filter(Boolean);
+  if (urls.length === 0) return null;
 
-    // Debounce — wait for Smootify to finish adding all images
-    clearTimeout(settleTimer);
-    settleTimer = setTimeout(() => {
-      const urls = collectImageUrls(source);
-      if (urls.length > 0) {
-        settled = true;
-        if (mutationObserver) { mutationObserver.disconnect(); mutationObserver = null; }
-        wrappers.forEach(wrap => {
-          const instance = buildGallery(wrap, urls);
-          if (instance) instances.push(instance);
-        });
+  // Get the thumb template
+  const thumbTemplate = thumbNav.querySelector('.img-slider__thumb');
+
+  // Clear containers
+  slideList.innerHTML = '';
+  thumbNav.innerHTML = '';
+
+  urls.forEach((url, i) => {
+    // Build slide
+    const slide = document.createElement('div');
+    slide.className = 'img-slide';
+    slide.setAttribute('data-slideshow', 'slide');
+
+    const img = document.createElement('img');
+    img.className = 'img-slide__inner';
+    img.setAttribute('data-slideshow', 'parallax');
+    img.setAttribute('draggable', 'false');
+    img.setAttribute('loading', i === 0 ? 'eager' : 'lazy');
+    img.src = url;
+    slide.appendChild(img);
+    slideList.appendChild(slide);
+
+    // Build thumb
+    if (thumbTemplate) {
+      const thumb = thumbTemplate.cloneNode(true);
+      thumb.classList.remove('is--current');
+      thumb.setAttribute('data-slideshow', 'thumb');
+      const thumbImg = thumb.querySelector('.slider-thumb__img') || thumb.querySelector('img');
+      if (thumbImg) {
+        thumbImg.src = url;
+        thumbImg.removeAttribute('srcset');
+        thumbImg.removeAttribute('sizes');
       }
-    }, 300);
-  });
-
-  mutationObserver.observe(source, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
-
-  // Fallback: if nothing after 6s, init with static images
-  setTimeout(() => {
-    if (!settled) {
-      settled = true;
-      if (mutationObserver) { mutationObserver.disconnect(); mutationObserver = null; }
-      wrappers.forEach(wrap => {
-        const instance = initSlideShow(wrap);
-        if (instance) instances.push(instance);
-      });
-    }
-  }, 6000);
-}
-
-function collectImageUrls(source) {
-  const imgs = source.querySelectorAll('img[src]');
-  const urls = [];
-  imgs.forEach(img => {
-    const src = img.getAttribute('src');
-    if (src && src !== '' && !src.includes('data:') && !src.includes('website-files.com')) {
-      urls.push(src);
+      thumbNav.appendChild(thumb);
     }
   });
-  return urls;
+
+  return initSlideShow(wrapper);
 }
 
 export function initProductGallery(scope) {
@@ -251,32 +158,29 @@ export function initProductGallery(scope) {
   const wrappers = root.querySelectorAll('[data-slideshow="wrap"]');
   if (!wrappers.length) return;
 
-  // Check if we're on a product page
-  const isProductPage = window.location.pathname.match(/\/product\//);
-  if (!isProductPage) {
-    // Not a product page — init with static images
-    wrappers.forEach(wrap => {
-      const instance = initSlideShow(wrap);
-      if (instance) instances.push(instance);
-    });
-    return;
-  }
+  // Poll until Smootify has duplicated the images (they appear as multiple .img-slide__inner)
+  let attempts = 0;
+  const maxAttempts = 30; // 30 × 200ms = 6s max wait
 
-  // Find the Webflow-authored media source (hidden div with product="media" img)
-  const source = findMediaSource();
-  if (!source) {
-    // No media source element — init with static images
-    wrappers.forEach(wrap => {
-      const instance = initSlideShow(wrap);
-      if (instance) instances.push(instance);
-    });
-    return;
-  }
-  watchForMedia(source, wrappers);
+  pollTimer = setInterval(() => {
+    attempts++;
+    const firstSlide = root.querySelector('.img-slide');
+    const imgCount = firstSlide ? firstSlide.querySelectorAll('.img-slide__inner').length : 0;
+
+    if (imgCount > 1 || attempts >= maxAttempts) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+
+      wrappers.forEach(wrap => {
+        const instance = imgCount > 1 ? restructureGallery(wrap) : initSlideShow(wrap);
+        if (instance) instances.push(instance);
+      });
+    }
+  }, 200);
 }
 
 export function destroyProductGallery() {
-  if (mutationObserver) { mutationObserver.disconnect(); mutationObserver = null; }
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   instances.forEach(inst => inst.destroy());
   instances = [];
 }
