@@ -151,6 +151,7 @@ export function initStickyFeatures(scope) {
       start: "center center",
       end: function () { return "+=" + (steps * 100) + "%"; },
       pin: true,
+      pinType: "transform",
       scrub: true,
       invalidateOnRefresh: true,
       onUpdate: function (self) {
