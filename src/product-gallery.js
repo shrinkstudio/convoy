@@ -7,8 +7,24 @@
 let instances = [];
 let pollTimer = null;
 
+// Inject critical CSS once — slides must overlap via absolute positioning
+let styleInjected = false;
+function injectStyles() {
+  if (styleInjected) return;
+  styleInjected = true;
+  const style = document.createElement('style');
+  style.textContent = `
+    .img-slider__list { position: relative; overflow: hidden; }
+    .img-slide { position: absolute; inset: 0; visibility: hidden; }
+    .img-slide.is--current { visibility: visible; }
+    .img-slide__inner { width: 100%; height: 100%; object-fit: cover; }
+  `;
+  document.head.appendChild(style);
+}
+
 function initSlideShow(el) {
   gsap.registerPlugin(Observer, CustomEase);
+  injectStyles();
 
   if (!CustomEase.get('slideshow-wipe')) {
     CustomEase.create('slideshow-wipe', '0.6, 0.08, 0.02, 0.99');
