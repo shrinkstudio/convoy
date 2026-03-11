@@ -7,24 +7,8 @@
 let instances = [];
 let pollTimer = null;
 
-// Inject critical CSS once — slides must overlap via absolute positioning
-let styleInjected = false;
-function injectStyles() {
-  if (styleInjected) return;
-  styleInjected = true;
-  const style = document.createElement('style');
-  style.textContent = `
-    .img-slider__list { position: relative; overflow: hidden; }
-    .img-slide { position: absolute; inset: 0; visibility: hidden; }
-    .img-slide.is--current { visibility: visible; }
-    .img-slide__inner { width: 100%; height: 100%; object-fit: cover; }
-  `;
-  document.head.appendChild(style);
-}
-
 function initSlideShow(el) {
   gsap.registerPlugin(Observer, CustomEase);
-  injectStyles();
 
   if (!CustomEase.get('slideshow-wipe')) {
     CustomEase.create('slideshow-wipe', '0.6, 0.08, 0.02, 0.99');
@@ -48,11 +32,18 @@ function initSlideShow(el) {
   ui.slides.forEach((slide, i) => slide.setAttribute('data-index', i));
   ui.thumbs.forEach((thumb, i) => thumb.setAttribute('data-index', i));
 
-  // Clear any stale is--current classes, then set first
-  ui.slides.forEach(s => s.classList.remove('is--current'));
-  ui.thumbs.forEach(t => t.classList.remove('is--current'));
+  // Set initial state: first slide visible, rest hidden
+  // Uses opacity/pointerEvents to match Webflow's approach (not visibility)
+  ui.slides.forEach((s, i) => {
+    s.classList.remove('is--current');
+    gsap.set(s, { opacity: i === 0 ? 1 : 0, pointerEvents: i === 0 ? 'auto' : 'none', xPercent: 0 });
+  });
   ui.slides[0].classList.add('is--current');
-  if (ui.thumbs[0]) ui.thumbs[0].classList.add('is--current');
+
+  ui.thumbs.forEach((t, i) => {
+    t.classList.remove('is--current');
+    if (i === 0) t.classList.add('is--current');
+  });
 
   function navigate(direction, targetIndex = null) {
     if (animating) return;
@@ -69,11 +60,15 @@ function initSlideShow(el) {
     gsap.timeline({
       defaults: { duration: animationDuration, ease: 'slideshow-wipe' },
       onStart() {
+        // Make upcoming slide visible before animation
+        gsap.set(ui.slides[current], { opacity: 1, pointerEvents: 'auto' });
         ui.slides[current].classList.add('is--current');
-        if (ui.thumbs[previous]) ui.thumbs[previous].classList.remove('is--current');
+        ui.thumbs.forEach(t => t.classList.remove('is--current'));
         if (ui.thumbs[current]) ui.thumbs[current].classList.add('is--current');
       },
       onComplete() {
+        // Hide previous slide after animation
+        gsap.set(ui.slides[previous], { opacity: 0, pointerEvents: 'none' });
         ui.slides[previous].classList.remove('is--current');
         animating = false;
         setTimeout(() => obs.enable(), animationDuration);
@@ -128,15 +123,12 @@ function syncThumbs(wrapper) {
   const slideCount = slides.length;
 
   if (thumbs.length > slideCount) {
-    // Too many thumbs — remove extras
     thumbs.slice(slideCount).forEach(t => t.remove());
   } else if (thumbs.length < slideCount && thumbs.length > 0) {
-    // Too few thumbs — clone from first to fill
     const template = thumbs[0];
     for (let i = thumbs.length; i < slideCount; i++) {
       const clone = template.cloneNode(true);
       clone.classList.remove('is--current');
-      // Update thumb image to match slide image
       const slideImg = slides[i].querySelector('img');
       const thumbImg = clone.querySelector('img');
       if (slideImg && thumbImg) {
