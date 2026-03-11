@@ -5,18 +5,7 @@
 // -----------------------------------------
 
 let instances = [];
-
-function getProductHandle() {
-  // Smootify product pages use <smootify-product> with a handle attribute,
-  // or we can extract from the URL path: /product/some-handle
-  const smootifyEl = document.querySelector('smootify-product');
-  if (smootifyEl) {
-    return smootifyEl.getAttribute('handle') || smootifyEl.getAttribute('product');
-  }
-  const path = window.location.pathname;
-  const match = path.match(/\/product\/([^/?#]+)/);
-  return match ? match[1] : null;
-}
+let productLoadedHandler = null;
 
 function buildGallery(wrapper, images) {
   const slideList = wrapper.querySelector('.img-slider__list');
@@ -194,36 +183,40 @@ function initSlideShow(el) {
   };
 }
 
-async function fetchProductMedia(handle) {
-  // Use Smootify's built-in Storefront API query if available
-  if (window.Smootify && typeof window.Smootify.query === 'function') {
-    const query = `{
-      product(handle: "${handle}") {
-        media(first: 20) {
-          edges {
-            node {
-              mediaContentType
-              ... on MediaImage {
-                image {
-                  url
-                  altText
-                  width
-                  height
-                }
-              }
-            }
-          }
-        }
-      }
-    }`;
-    const data = await window.Smootify.query(query);
-    if (data?.product?.media?.edges) {
-      return data.product.media.edges
-        .filter(e => e.node.mediaContentType === 'IMAGE')
-        .map(e => e.node.image);
-    }
+function extractImages(product) {
+  // Smootify product object — try media array first, then images
+  if (product.media?.edges) {
+    return product.media.edges
+      .filter(e => e.node.mediaContentType === 'IMAGE')
+      .map(e => e.node.image);
   }
-  return null;
+  if (product.media && Array.isArray(product.media)) {
+    return product.media
+      .filter(m => m.mediaContentType === 'IMAGE' || m.media_type === 'image')
+      .map(m => m.image || m);
+  }
+  if (product.images?.edges) {
+    return product.images.edges.map(e => e.node);
+  }
+  if (product.images && Array.isArray(product.images)) {
+    return product.images.map(img =>
+      typeof img === 'string' ? { url: img } : img
+    );
+  }
+  return [];
+}
+
+function handleProductLoaded(wrappers, event) {
+  const { product } = event.detail || {};
+  if (!product) return;
+
+  const images = extractImages(product);
+  if (!images.length) return;
+
+  wrappers.forEach(wrap => {
+    const instance = buildGallery(wrap, images);
+    if (instance) instances.push(instance);
+  });
 }
 
 export function initProductGallery(scope) {
@@ -231,43 +224,33 @@ export function initProductGallery(scope) {
   const wrappers = root.querySelectorAll('[data-slideshow="wrap"]');
   if (!wrappers.length) return;
 
-  const handle = getProductHandle();
-  if (!handle) {
-    // No product context — init slideshow with existing static images
-    wrappers.forEach(wrap => {
-      const instance = initSlideShow(wrap);
-      if (instance) instances.push(instance);
-    });
-    return;
-  }
+  // Listen for Smootify product data
+  productLoadedHandler = (e) => handleProductLoaded(wrappers, e);
+  document.addEventListener('smootify:product_loaded', productLoadedHandler);
 
-  // Wait for Smootify to load, then fetch media and build gallery
-  function onSmootifyLoaded() {
-    fetchProductMedia(handle).then(images => {
-      if (!images || images.length === 0) {
-        // Fallback: init with whatever static images are in the DOM
-        wrappers.forEach(wrap => {
-          const instance = initSlideShow(wrap);
-          if (instance) instances.push(instance);
-        });
-        return;
-      }
-
+  // Fallback: if no Smootify event fires within 4s, init with static images
+  const fallbackTimer = setTimeout(() => {
+    if (instances.length === 0) {
       wrappers.forEach(wrap => {
-        const instance = buildGallery(wrap, images);
+        const instance = initSlideShow(wrap);
         if (instance) instances.push(instance);
       });
-    });
-  }
+    }
+  }, 4000);
 
-  if (window.Smootify) {
-    onSmootifyLoaded();
-  } else {
-    document.addEventListener('smootify:loaded', onSmootifyLoaded, { once: true });
-  }
+  // Cancel fallback if gallery was built via Smootify
+  const origPush = instances.push.bind(instances);
+  instances.push = function (...args) {
+    clearTimeout(fallbackTimer);
+    return origPush(...args);
+  };
 }
 
 export function destroyProductGallery() {
+  if (productLoadedHandler) {
+    document.removeEventListener('smootify:product_loaded', productLoadedHandler);
+    productLoadedHandler = null;
+  }
   instances.forEach(inst => inst.destroy());
   instances = [];
 }
