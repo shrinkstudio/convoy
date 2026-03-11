@@ -4,8 +4,10 @@
 // builds Osmo parallax slideshow dynamically
 // -----------------------------------------
 
+const STOREFRONT_URL = 'https://kmhhxs-6f.myshopify.com/api/2026-01/graphql.json';
+const STOREFRONT_TOKEN = 'd6271f9736f021e9602fa9cd40c67773';
+
 let instances = [];
-let productLoadedHandler = null;
 
 function buildGallery(wrapper, images) {
   const slideList = wrapper.querySelector('.img-slider__list');
@@ -183,40 +185,49 @@ function initSlideShow(el) {
   };
 }
 
-function extractImages(product) {
-  // Smootify product object — try media array first, then images
-  if (product.media?.edges) {
-    return product.media.edges
+async function fetchProductMedia(handle) {
+  const query = `{
+    product(handle: "${handle}") {
+      media(first: 20) {
+        edges {
+          node {
+            mediaContentType
+            ... on MediaImage {
+              image {
+                url
+                altText
+                width
+                height
+              }
+            }
+          }
+        }
+      }
+    }
+  }`;
+
+  const res = await fetch(STOREFRONT_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Storefront-Access-Token': STOREFRONT_TOKEN
+    },
+    body: JSON.stringify({ query })
+  });
+
+  const data = await res.json();
+  if (data?.data?.product?.media?.edges) {
+    return data.data.product.media.edges
       .filter(e => e.node.mediaContentType === 'IMAGE')
       .map(e => e.node.image);
-  }
-  if (product.media && Array.isArray(product.media)) {
-    return product.media
-      .filter(m => m.mediaContentType === 'IMAGE' || m.media_type === 'image')
-      .map(m => m.image || m);
-  }
-  if (product.images?.edges) {
-    return product.images.edges.map(e => e.node);
-  }
-  if (product.images && Array.isArray(product.images)) {
-    return product.images.map(img =>
-      typeof img === 'string' ? { url: img } : img
-    );
   }
   return [];
 }
 
-function handleProductLoaded(wrappers, event) {
-  const { product } = event.detail || {};
-  if (!product) return;
-
-  const images = extractImages(product);
-  if (!images.length) return;
-
-  wrappers.forEach(wrap => {
-    const instance = buildGallery(wrap, images);
-    if (instance) instances.push(instance);
-  });
+function getProductHandle() {
+  const path = window.location.pathname;
+  const match = path.match(/\/product\/([^/?#]+)/);
+  return match ? match[1] : null;
 }
 
 export function initProductGallery(scope) {
@@ -224,33 +235,39 @@ export function initProductGallery(scope) {
   const wrappers = root.querySelectorAll('[data-slideshow="wrap"]');
   if (!wrappers.length) return;
 
-  // Listen for Smootify product data
-  productLoadedHandler = (e) => handleProductLoaded(wrappers, e);
-  document.addEventListener('smootify:product_loaded', productLoadedHandler);
+  const handle = getProductHandle();
+  if (!handle) {
+    // No product context — init with static images
+    wrappers.forEach(wrap => {
+      const instance = initSlideShow(wrap);
+      if (instance) instances.push(instance);
+    });
+    return;
+  }
 
-  // Fallback: if no Smootify event fires within 4s, init with static images
-  const fallbackTimer = setTimeout(() => {
-    if (instances.length === 0) {
+  fetchProductMedia(handle).then(images => {
+    if (!images || images.length === 0) {
       wrappers.forEach(wrap => {
         const instance = initSlideShow(wrap);
         if (instance) instances.push(instance);
       });
+      return;
     }
-  }, 4000);
 
-  // Cancel fallback if gallery was built via Smootify
-  const origPush = instances.push.bind(instances);
-  instances.push = function (...args) {
-    clearTimeout(fallbackTimer);
-    return origPush(...args);
-  };
+    wrappers.forEach(wrap => {
+      const instance = buildGallery(wrap, images);
+      if (instance) instances.push(instance);
+    });
+  }).catch(() => {
+    // Fallback on error
+    wrappers.forEach(wrap => {
+      const instance = initSlideShow(wrap);
+      if (instance) instances.push(instance);
+    });
+  });
 }
 
 export function destroyProductGallery() {
-  if (productLoadedHandler) {
-    document.removeEventListener('smootify:product_loaded', productLoadedHandler);
-    productLoadedHandler = null;
-  }
   instances.forEach(inst => inst.destroy());
   instances = [];
 }
