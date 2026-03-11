@@ -1,15 +1,13 @@
 // -----------------------------------------
 // PRODUCT GALLERY
-// Fetches Shopify product media via Smootify,
-// builds Osmo parallax slideshow dynamically
+// Piggybacks on Smootify's product="media" rendering,
+// then builds Osmo parallax slideshow from the injected images
 // -----------------------------------------
 
-const STOREFRONT_URL = 'https://kmhhxs-6f.myshopify.com/api/2026-01/graphql.json';
-const STOREFRONT_TOKEN = 'd6271f9736f021e9602fa9cd40c67773';
-
 let instances = [];
+let observer = null;
 
-function buildGallery(wrapper, images) {
+function buildGallery(wrapper, imageUrls) {
   const slideList = wrapper.querySelector('.img-slider__list');
   const thumbNav = wrapper.querySelector('.img-slider__nav');
 
@@ -25,20 +23,19 @@ function buildGallery(wrapper, images) {
   slideList.innerHTML = '';
   thumbNav.innerHTML = '';
 
-  images.forEach((img, i) => {
+  imageUrls.forEach((url, i) => {
     // Build slide
     const slide = slideTemplate.cloneNode(true);
     slide.classList.remove('is--current');
     slide.setAttribute('data-slideshow', 'slide');
     const slideImg = slide.querySelector('.img-slide__inner');
     if (slideImg) {
-      slideImg.src = img.url;
-      slideImg.alt = img.altText || '';
+      slideImg.src = url;
+      slideImg.alt = '';
       slideImg.setAttribute('data-slideshow', 'parallax');
       slideImg.setAttribute('draggable', 'false');
       slideImg.removeAttribute('srcset');
       slideImg.removeAttribute('sizes');
-      // Use Shopify CDN image transforms for performance
       slideImg.setAttribute('width', '960');
       slideImg.setAttribute('loading', i === 0 ? 'eager' : 'lazy');
     }
@@ -50,9 +47,8 @@ function buildGallery(wrapper, images) {
     thumb.setAttribute('data-slideshow', 'thumb');
     const thumbImg = thumb.querySelector('.slider-thumb__img');
     if (thumbImg) {
-      // Use smaller Shopify CDN size for thumbnails
-      thumbImg.src = resizeShopifyImage(img.url, '200x');
-      thumbImg.alt = img.altText || '';
+      thumbImg.src = resizeShopifyImage(url, '200x');
+      thumbImg.alt = '';
       thumbImg.removeAttribute('srcset');
       thumbImg.removeAttribute('sizes');
       thumbImg.setAttribute('loading', 'lazy');
@@ -65,8 +61,6 @@ function buildGallery(wrapper, images) {
 }
 
 function resizeShopifyImage(url, size) {
-  // Shopify CDN image transform: insert _SIZEx before extension
-  // e.g. image.png → image_200x.png
   if (!url) return url;
   const match = url.match(/(.+)(\.[a-zA-Z]+)(\?.*)?$/);
   if (match) {
@@ -78,7 +72,6 @@ function resizeShopifyImage(url, size) {
 function initSlideShow(el) {
   gsap.registerPlugin(Observer, CustomEase);
 
-  // Only create the ease if it doesn't exist yet
   if (!CustomEase.get('slideshow-wipe')) {
     CustomEase.create('slideshow-wipe', '0.6, 0.08, 0.02, 0.99');
   }
@@ -95,7 +88,7 @@ function initSlideShow(el) {
   let current = 0;
   const length = ui.slides.length;
   let animating = false;
-  let observer;
+  let obs;
   const animationDuration = 0.9;
 
   ui.slides.forEach((slide, index) => {
@@ -111,7 +104,7 @@ function initSlideShow(el) {
   function navigate(direction, targetIndex = null) {
     if (animating) return;
     animating = true;
-    observer.disable();
+    obs.disable();
 
     const previous = current;
     current =
@@ -139,7 +132,7 @@ function initSlideShow(el) {
       onComplete() {
         currentSlide.classList.remove('is--current');
         animating = false;
-        setTimeout(() => observer.enable(), animationDuration);
+        setTimeout(() => obs.enable(), animationDuration);
       }
     })
       .to(currentSlide, { xPercent: -direction * 100 }, 0)
@@ -159,7 +152,7 @@ function initSlideShow(el) {
     thumb.addEventListener('click', onClick);
   });
 
-  observer = Observer.create({
+  obs = Observer.create({
     target: el,
     type: 'wheel,touch,pointer',
     onLeft: () => { if (!animating) navigate(1); },
@@ -177,7 +170,7 @@ function initSlideShow(el) {
 
   return {
     destroy() {
-      if (observer) observer.kill();
+      if (obs) obs.kill();
       ui.thumbs.forEach(thumb => {
         thumb.removeEventListener('click', onClick);
       });
@@ -185,49 +178,91 @@ function initSlideShow(el) {
   };
 }
 
-async function fetchProductMedia(handle) {
-  const query = `{
-    product(handle: "${handle}") {
-      media(first: 20) {
-        edges {
-          node {
-            mediaContentType
-            ... on MediaImage {
-              image {
-                url
-                altText
-                width
-                height
-              }
-            }
-          }
-        }
-      }
-    }
-  }`;
+// Create a hidden Smootify media source — Smootify will clone
+// the img[product="media"] element for each product image
+function createMediaSource() {
+  const existing = document.getElementById('product-gallery-source');
+  if (existing) return existing;
 
-  const res = await fetch(STOREFRONT_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Shopify-Storefront-Access-Token': STOREFRONT_TOKEN
-    },
-    body: JSON.stringify({ query })
-  });
+  const source = document.createElement('div');
+  source.id = 'product-gallery-source';
+  source.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;';
 
-  const data = await res.json();
-  if (data?.data?.product?.media?.edges) {
-    return data.data.product.media.edges
-      .filter(e => e.node.mediaContentType === 'IMAGE')
-      .map(e => e.node.image);
+  const img = document.createElement('img');
+  img.setAttribute('product', 'media');
+  img.setAttribute('skeleton', 'image');
+  source.appendChild(img);
+
+  // Insert inside the nearest smootify-product element, or body
+  const smootifyProduct = document.querySelector('smootify-product');
+  if (smootifyProduct) {
+    smootifyProduct.appendChild(source);
+  } else {
+    document.body.appendChild(source);
   }
-  return [];
+
+  return source;
 }
 
-function getProductHandle() {
-  const path = window.location.pathname;
-  const match = path.match(/\/product\/([^/?#]+)/);
-  return match ? match[1] : null;
+// Watch for Smootify to clone images into the source container
+function watchForMedia(source, wrappers) {
+  // Check if images are already there (Smootify may have already run)
+  const existingImages = collectImageUrls(source);
+  if (existingImages.length > 0) {
+    wrappers.forEach(wrap => {
+      const instance = buildGallery(wrap, existingImages);
+      if (instance) instances.push(instance);
+    });
+    return;
+  }
+
+  // Watch for Smootify to add/modify images
+  let settled = false;
+  let settleTimer = null;
+
+  observer = new MutationObserver(() => {
+    if (settled) return;
+
+    // Debounce — wait for Smootify to finish adding all images
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(() => {
+      const urls = collectImageUrls(source);
+      if (urls.length > 0) {
+        settled = true;
+        if (observer) { observer.disconnect(); observer = null; }
+        wrappers.forEach(wrap => {
+          const instance = buildGallery(wrap, urls);
+          if (instance) instances.push(instance);
+        });
+      }
+    }, 300);
+  });
+
+  observer.observe(source, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+
+  // Fallback: if nothing after 5s, init with static images
+  setTimeout(() => {
+    if (!settled) {
+      settled = true;
+      if (observer) { observer.disconnect(); observer = null; }
+      wrappers.forEach(wrap => {
+        const instance = initSlideShow(wrap);
+        if (instance) instances.push(instance);
+      });
+    }
+  }, 5000);
+}
+
+function collectImageUrls(source) {
+  const imgs = source.querySelectorAll('img[src]');
+  const urls = [];
+  imgs.forEach(img => {
+    const src = img.getAttribute('src');
+    if (src && src !== '' && !src.includes('data:') && !src.includes('website-files.com')) {
+      urls.push(src);
+    }
+  });
+  return urls;
 }
 
 export function initProductGallery(scope) {
@@ -235,9 +270,10 @@ export function initProductGallery(scope) {
   const wrappers = root.querySelectorAll('[data-slideshow="wrap"]');
   if (!wrappers.length) return;
 
-  const handle = getProductHandle();
-  if (!handle) {
-    // No product context — init with static images
+  // Check if we're on a product page
+  const isProductPage = window.location.pathname.match(/\/product\//);
+  if (!isProductPage) {
+    // Not a product page — init with static images
     wrappers.forEach(wrap => {
       const instance = initSlideShow(wrap);
       if (instance) instances.push(instance);
@@ -245,29 +281,15 @@ export function initProductGallery(scope) {
     return;
   }
 
-  fetchProductMedia(handle).then(images => {
-    if (!images || images.length === 0) {
-      wrappers.forEach(wrap => {
-        const instance = initSlideShow(wrap);
-        if (instance) instances.push(instance);
-      });
-      return;
-    }
-
-    wrappers.forEach(wrap => {
-      const instance = buildGallery(wrap, images);
-      if (instance) instances.push(instance);
-    });
-  }).catch(() => {
-    // Fallback on error
-    wrappers.forEach(wrap => {
-      const instance = initSlideShow(wrap);
-      if (instance) instances.push(instance);
-    });
-  });
+  // Create hidden media source for Smootify to populate
+  const source = createMediaSource();
+  watchForMedia(source, wrappers);
 }
 
 export function destroyProductGallery() {
+  if (observer) { observer.disconnect(); observer = null; }
+  const source = document.getElementById('product-gallery-source');
+  if (source) source.remove();
   instances.forEach(inst => inst.destroy());
   instances = [];
 }
