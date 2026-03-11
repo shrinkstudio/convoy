@@ -16,6 +16,7 @@ import { initParallax, destroyParallax } from './parallax.js';
 import { initStackingCards, destroyStackingCards } from './stacking-cards.js';
 import { initFooterParallax, destroyFooterParallax } from './footer-parallax.js';
 import { initCopyClip, destroyCopyClip } from './copy-clip.js';
+import { initStickyFeatures, destroyStickyFeatures } from './sticky-features.js';
 
 gsap.registerPlugin(CustomEase);
 if (typeof ScrollTrigger !== 'undefined') gsap.registerPlugin(ScrollTrigger);
@@ -72,6 +73,7 @@ function initBeforeEnterFunctions(next) {
   destroyStackingCards();
   destroyFooterParallax();
   destroyCopyClip();
+  destroyStickyFeatures();
   destroyModals();
 }
 
@@ -92,6 +94,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-footer-parallax]'))   initFooterParallax(nextPage);
   if (has('[data-footer-year]'))       initFooterYear(nextPage);
   if (has('[data-copy="trigger"]'))   initCopyClip(nextPage);
+  if (has('[data-sticky-feature-wrap]')) initStickyFeatures(nextPage);
 
   // Webflow IX2 reinit — fixes native nav dropdowns
   if (window.Webflow && window.Webflow.ready) {
