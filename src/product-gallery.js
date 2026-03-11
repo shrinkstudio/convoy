@@ -5,7 +5,7 @@
 // -----------------------------------------
 
 let instances = [];
-let observer = null;
+let mutationObserver = null;
 
 function buildGallery(wrapper, imageUrls) {
   const slideList = wrapper.querySelector('.img-slider__list');
@@ -178,30 +178,11 @@ function initSlideShow(el) {
   };
 }
 
-// Create a hidden Smootify media source — Smootify will clone
-// the img[product="media"] element for each product image
-function createMediaSource() {
-  const existing = document.getElementById('product-gallery-source');
-  if (existing) return existing;
-
-  const source = document.createElement('div');
-  source.id = 'product-gallery-source';
-  source.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden;pointer-events:none;';
-
-  const img = document.createElement('img');
-  img.setAttribute('product', 'media');
-  img.setAttribute('skeleton', 'image');
-  source.appendChild(img);
-
-  // Insert inside the nearest smootify-product element, or body
-  const smootifyProduct = document.querySelector('smootify-product');
-  if (smootifyProduct) {
-    smootifyProduct.appendChild(source);
-  } else {
-    document.body.appendChild(source);
-  }
-
-  return source;
+// Find the Smootify media source — a hidden container in the Webflow
+// markup with img[product="media"] inside smootify-product
+function findMediaSource() {
+  return document.querySelector('.product-media-source')
+    || document.querySelector('[product="media"]')?.parentElement;
 }
 
 // Watch for Smootify to clone images into the source container
@@ -220,7 +201,7 @@ function watchForMedia(source, wrappers) {
   let settled = false;
   let settleTimer = null;
 
-  observer = new MutationObserver(() => {
+  mutationObserver = new MutationObserver(() => {
     if (settled) return;
 
     // Debounce — wait for Smootify to finish adding all images
@@ -229,7 +210,7 @@ function watchForMedia(source, wrappers) {
       const urls = collectImageUrls(source);
       if (urls.length > 0) {
         settled = true;
-        if (observer) { observer.disconnect(); observer = null; }
+        if (mutationObserver) { mutationObserver.disconnect(); mutationObserver = null; }
         wrappers.forEach(wrap => {
           const instance = buildGallery(wrap, urls);
           if (instance) instances.push(instance);
@@ -238,19 +219,19 @@ function watchForMedia(source, wrappers) {
     }, 300);
   });
 
-  observer.observe(source, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
+  mutationObserver.observe(source, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
 
-  // Fallback: if nothing after 5s, init with static images
+  // Fallback: if nothing after 6s, init with static images
   setTimeout(() => {
     if (!settled) {
       settled = true;
-      if (observer) { observer.disconnect(); observer = null; }
+      if (mutationObserver) { mutationObserver.disconnect(); mutationObserver = null; }
       wrappers.forEach(wrap => {
         const instance = initSlideShow(wrap);
         if (instance) instances.push(instance);
       });
     }
-  }, 5000);
+  }, 6000);
 }
 
 function collectImageUrls(source) {
@@ -281,15 +262,21 @@ export function initProductGallery(scope) {
     return;
   }
 
-  // Create hidden media source for Smootify to populate
-  const source = createMediaSource();
+  // Find the Webflow-authored media source (hidden div with product="media" img)
+  const source = findMediaSource();
+  if (!source) {
+    // No media source element — init with static images
+    wrappers.forEach(wrap => {
+      const instance = initSlideShow(wrap);
+      if (instance) instances.push(instance);
+    });
+    return;
+  }
   watchForMedia(source, wrappers);
 }
 
 export function destroyProductGallery() {
-  if (observer) { observer.disconnect(); observer = null; }
-  const source = document.getElementById('product-gallery-source');
-  if (source) source.remove();
+  if (mutationObserver) { mutationObserver.disconnect(); mutationObserver = null; }
   instances.forEach(inst => inst.destroy());
   instances = [];
 }
