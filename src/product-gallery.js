@@ -115,16 +115,39 @@ function initSlideShow(el) {
   };
 }
 
-export function initProductGallery(scope) {
-  const root = scope || document;
+function initAll(root) {
   const wrappers = root.querySelectorAll('[data-slideshow="wrap"]');
   wrappers.forEach(wrap => {
+    // Skip if already initialised (e.g. from eager path)
+    if (wrap._slideshowInit) return;
+    const slides = wrap.querySelectorAll('[data-slideshow="slide"]');
+    if (slides.length === 0) return; // Smootify hasn't rendered yet
+    wrap._slideshowInit = true;
     const instance = initSlideShow(wrap);
     if (instance) instances.push(instance);
   });
 }
 
+export function initProductGallery(scope) {
+  const root = scope || document;
+
+  // Try immediately (slides may already exist on full page load)
+  initAll(root);
+
+  // Also listen for Smootify finishing product render
+  const onProductLoaded = () => {
+    initAll(root);
+  };
+  document.addEventListener('smootify:product_loaded', onProductLoaded);
+
+  // Store reference for cleanup
+  instances._smootifyHandler = onProductLoaded;
+}
+
 export function destroyProductGallery() {
+  if (instances._smootifyHandler) {
+    document.removeEventListener('smootify:product_loaded', instances._smootifyHandler);
+  }
   instances.forEach(inst => inst.destroy());
   instances = [];
 }
