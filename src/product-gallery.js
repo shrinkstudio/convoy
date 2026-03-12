@@ -1,11 +1,8 @@
 // -----------------------------------------
-// PRODUCT GALLERY
-// Original Osmo parallax slideshow, wrapped
-// for Barba + Smootify polling
+// PRODUCT GALLERY — Osmo Parallax Slideshow
 // -----------------------------------------
 
 let instances = [];
-let pollTimer = null;
 
 function initSlideShow(el) {
   gsap.registerPlugin(Observer, CustomEase);
@@ -121,30 +118,13 @@ function initSlideShow(el) {
 export function initProductGallery(scope) {
   const root = scope || document;
   const wrappers = root.querySelectorAll('[data-slideshow="wrap"]');
-  if (!wrappers.length) return;
-
-  // Poll until Smootify has duplicated slides
-  let attempts = 0;
-  const maxAttempts = 30;
-
-  pollTimer = setInterval(() => {
-    attempts++;
-    const slideCount = root.querySelectorAll('[data-slideshow="slide"]').length;
-
-    if (slideCount > 1 || attempts >= maxAttempts) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-
-      wrappers.forEach(wrap => {
-        const instance = initSlideShow(wrap);
-        if (instance) instances.push(instance);
-      });
-    }
-  }, 200);
+  wrappers.forEach(wrap => {
+    const instance = initSlideShow(wrap);
+    if (instance) instances.push(instance);
+  });
 }
 
 export function destroyProductGallery() {
-  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   instances.forEach(inst => inst.destroy());
   instances = [];
 }
