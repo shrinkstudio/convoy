@@ -360,8 +360,8 @@ barba.init({
   preventRunning: true,
   prevent: ({ el }) => {
     // Force full page load to/from product pages (Smootify has no reinit API)
-    if (el?.href && new URL(el.href, location.origin).pathname.startsWith('/products/')) return true;
-    if (location.pathname.startsWith('/products/')) return true;
+    if (el?.href && new URL(el.href, location.origin).pathname.startsWith('/product/')) return true;
+    if (location.pathname.startsWith('/product/')) return true;
     return false;
   },
   transitions: [
