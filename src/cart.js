@@ -148,10 +148,28 @@ function renderItems() {
   const emptyEl = q('empty');
   if (emptyEl) emptyEl.style.display = items.length ? 'none' : '';
 
-  // Toggle items + footer visibility
-  const footerEl = els.drawer?.querySelector('.sm-mini-cart_footer');
-  if (footerEl) footerEl.style.display = items.length ? '' : 'none';
-  if (container) container.style.display = items.length ? '' : 'none';
+  // Force-show all intermediate containers that Smootify CSS may hide
+  if (items.length) {
+    const formBlock = els.drawer?.querySelector('.sm-mini-cart-form-block');
+    if (formBlock) formBlock.style.display = 'block';
+
+    const form = els.drawer?.querySelector('.sm-mini-cart_form');
+    if (form) form.style.display = 'block';
+
+    const footerEl = els.drawer?.querySelector('.sm-mini-cart_footer');
+    if (footerEl) footerEl.style.display = '';
+
+    if (container) container.style.display = '';
+
+    // Force cart-item custom elements to display
+    container.querySelectorAll('cart-item').forEach(el => {
+      el.style.display = 'block';
+    });
+  } else {
+    const footerEl = els.drawer?.querySelector('.sm-mini-cart_footer');
+    if (footerEl) footerEl.style.display = 'none';
+    if (container) container.style.display = 'none';
+  }
 
   items.forEach((item) => {
     const clone = templateEl.cloneNode(true);
@@ -403,6 +421,9 @@ function handleAddToCart(button) {
 
   console.log('[CONVOY Cart] Selling plan ID:', sellingPlanId);
   console.log('[CONVOY Cart] Variant sellingPlanAllocations:', variant.sellingPlanAllocations);
+  console.log('[CONVOY Cart] Allocations resolved:', allocations);
+  console.log('[CONVOY Cart] Is array?', Array.isArray(allocations), 'Length:', allocations?.length);
+  if (allocations?.[0]) console.log('[CONVOY Cart] First allocation:', JSON.stringify(allocations[0]));
 
   // Build the item for PPcartSession
   // PPcartSession.push() requires `id` and `unitPrice`
