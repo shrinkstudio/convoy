@@ -30,6 +30,7 @@ let els = {};
 let templateEl = null;
 let ppReady = false;
 let listeners = [];
+let selectedVariant = null; // Tracks Smootify's currently selected variant
 
 // ---- Helpers ----
 
@@ -223,9 +224,109 @@ function handleCheckout() {
   }
 }
 
+// ---- Add to Cart (Product Page → PPcartSession) ----
+
+function getSelectedVariantFromSmootify(button) {
+  // Walk up to find the smootify-product wrapper
+  const product = button.closest('smootify-product');
+  if (!product) return null;
+
+  // Try Smootify's custom element API (may expose product/variant data)
+  if (product.selectedVariant) return product.selectedVariant;
+  if (product.variant) return product.variant;
+
+  // Try reading from the add-to-cart form's hidden input
+  const addToCart = button.closest('smootify-add-to-cart');
+  if (addToCart) {
+    // Smootify may store the selected variant ID in a hidden input or property
+    if (addToCart.selectedVariant) return addToCart.selectedVariant;
+    if (addToCart.variantId) return { id: addToCart.variantId };
+
+    const hiddenInput = addToCart.querySelector('input[name="id"], input[name="variant_id"]');
+    if (hiddenInput && hiddenInput.value) {
+      return { id: hiddenInput.value };
+    }
+  }
+
+  // Use tracked variant from smootify:variant_changed event
+  if (selectedVariant) return selectedVariant;
+
+  return null;
+}
+
+function handleAddToCart(button) {
+  const session = getSession();
+  const variant = getSelectedVariantFromSmootify(button);
+
+  // Debug logging (remove once confirmed working)
+  console.log('[CONVOY Cart] Add to cart clicked');
+  console.log('[CONVOY Cart] PPcartSession:', session ? 'ready' : 'NOT ready');
+  console.log('[CONVOY Cart] Selected variant:', variant);
+
+  // Also log what Smootify exposes on the product element
+  const product = button.closest('smootify-product');
+  if (product) {
+    console.log('[CONVOY Cart] smootify-product keys:', Object.keys(product));
+    console.log('[CONVOY Cart] smootify-product.product:', product.product);
+    console.log('[CONVOY Cart] smootify-product.selectedVariant:', product.selectedVariant);
+    console.log('[CONVOY Cart] smootify-product.variant:', product.variant);
+  }
+  const addToCart = button.closest('smootify-add-to-cart');
+  if (addToCart) {
+    console.log('[CONVOY Cart] smootify-add-to-cart keys:', Object.keys(addToCart));
+    console.log('[CONVOY Cart] smootify-add-to-cart.selectedVariant:', addToCart.selectedVariant);
+    console.log('[CONVOY Cart] smootify-add-to-cart.variantId:', addToCart.variantId);
+  }
+
+  if (!session) {
+    console.warn('[CONVOY Cart] PPcartSession not available — is PreProduct script loaded?');
+    return;
+  }
+
+  if (!variant || !variant.id) {
+    console.warn('[CONVOY Cart] No variant selected');
+    return;
+  }
+
+  // Build the item for PPcartSession
+  const item = {
+    variant_id: variant.id,
+    quantity: 1,
+    // Include product info for cart display
+    title: variant.product_title || variant.title || product?.product?.title || '',
+    price: variant.price || 0,
+    image: variant.image?.src || variant.featured_image?.src || product?.product?.images?.[0]?.src || '',
+    variant_title: variant.title || '',
+    url: product?.product?.url || window.location.pathname,
+  };
+
+  console.log('[CONVOY Cart] Pushing to PPcartSession:', item);
+
+  // Push to PreProduct cart
+  if (typeof session.push === 'function') {
+    session.push(item);
+  } else if (typeof session.forcePush === 'function') {
+    session.forcePush(item);
+  }
+
+  // Re-render and open drawer
+  renderItems();
+  openDrawer();
+}
+
+function onSmootifyVariantChanged(e) {
+  // Track the selected variant from Smootify's event
+  if (e.detail?.variant) {
+    selectedVariant = e.detail.variant;
+  } else if (e.detail) {
+    selectedVariant = e.detail;
+  }
+  console.log('[CONVOY Cart] Variant changed:', selectedVariant);
+}
+
 // ---- Event delegation ----
 
-function onDrawerClick(e) {
+function onCartClick(e) {
   const target = e.target.closest('[data-cart]');
   if (!target) return;
 
@@ -240,6 +341,11 @@ function onDrawerClick(e) {
     case 'close':
       e.preventDefault();
       closeDrawer();
+      break;
+    case 'add':
+      e.preventDefault();
+      e.stopPropagation(); // Prevent Smootify from also handling this
+      handleAddToCart(target);
       break;
     case 'increment':
       e.preventDefault();
@@ -296,9 +402,10 @@ export function initCart(scope) {
     templateEl.style.display = 'none';
   }
 
-  // Delegation on the drawer root
-  els.drawer.addEventListener('click', onDrawerClick);
-  listeners.push(['click', onDrawerClick, els.drawer]);
+  // Document-level delegation for ALL data-cart actions
+  // (covers both drawer clicks AND product page add-to-cart button)
+  document.addEventListener('click', onCartClick);
+  listeners.push(['click', onCartClick, document]);
 
   // Dialog backdrop click to close
   const dialog = els.drawer.querySelector('dialog');
@@ -314,6 +421,27 @@ export function initCart(scope) {
       listeners.push(['submit', onSubmit, form]);
     }
   }
+
+  // Also prevent Smootify's add-to-cart form from submitting to Shopify
+  const productForms = root.querySelectorAll('smootify-add-to-cart form');
+  productForms.forEach(form => {
+    const onSubmit = (e) => {
+      e.preventDefault();
+      // Find the add button and trigger our handler
+      const addBtn = form.querySelector('[data-cart="add"]');
+      if (addBtn) handleAddToCart(addBtn);
+    };
+    form.addEventListener('submit', onSubmit);
+    listeners.push(['submit', onSubmit, form]);
+  });
+
+  // Track Smootify variant changes
+  document.addEventListener('smootify:variant_changed', onSmootifyVariantChanged);
+  listeners.push(['smootify:variant_changed', onSmootifyVariantChanged, document]);
+
+  // Also try the more common event name patterns
+  document.addEventListener('variant:changed', onSmootifyVariantChanged);
+  listeners.push(['variant:changed', onSmootifyVariantChanged, document]);
 
   // If PPcartSession already available, render immediately
   if (window.PPcartSession) {
@@ -336,4 +464,5 @@ export function destroyCart() {
   els = {};
   templateEl = null;
   ppReady = false;
+  selectedVariant = null;
 }
