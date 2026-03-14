@@ -31,6 +31,7 @@ let templateEl = null;
 let ppReady = false;
 let listeners = [];
 let selectedVariant = null; // Tracks Smootify's currently selected variant
+let itemDisplayData = {};   // Local cache of product display info keyed by variant ID
 
 // ---- Helpers ----
 
@@ -56,10 +57,25 @@ function getItems() {
   return [];
 }
 
-function formatPrice(cents) {
-  if (typeof cents === 'string') return cents;
-  const value = (cents / 100).toFixed(2);
-  return `£${value}`;
+function formatPrice(amount) {
+  if (typeof amount === 'string') {
+    // If it's already formatted (e.g. "€2,299"), return as-is
+    if (amount.match(/[€£$]/)) return amount;
+    amount = parseFloat(amount);
+  }
+  if (!amount || isNaN(amount)) return '€0.00';
+  // Smootify returns price as a decimal (e.g. 2299.0), not cents
+  // If the value looks like cents (> 10000), divide by 100
+  const value = amount > 10000 ? amount / 100 : amount;
+  return `€${value.toFixed(2)}`;
+}
+
+function storeItemDisplayData(variantId, data) {
+  itemDisplayData[variantId] = data;
+}
+
+function getItemDisplayData(variantId) {
+  return itemDisplayData[variantId] || {};
 }
 
 // ---- Open / Close ----
@@ -125,22 +141,27 @@ function renderItems() {
     clone.removeAttribute('data-cart');
     clone.style.display = '';
 
-    // Populate fields
+    const variantId = item.variant_id || item.id;
+    const display = getItemDisplayData(variantId);
+
+    // Populate fields (prefer item data from PPcartSession, fall back to local cache)
     const img = clone.querySelector('[data-cart="item-image"]');
-    if (img && item.image) {
-      img.src = item.image;
-      img.alt = item.title || '';
+    const imageSrc = item.image || display.image;
+    if (img && imageSrc) {
+      img.src = imageSrc;
+      img.alt = item.title || display.title || '';
     }
 
     const title = clone.querySelector('[data-cart="item-title"]');
     if (title) {
-      title.textContent = item.title || item.product_title || '';
-      if (item.url) title.href = item.url;
+      title.textContent = item.title || item.product_title || display.title || '';
+      const itemUrl = item.url || display.url;
+      if (itemUrl) title.href = itemUrl;
     }
 
     const options = clone.querySelector('[data-cart="item-options"]');
     if (options) {
-      const variantTitle = item.variant_title || item.variant || '';
+      const variantTitle = item.variant_title || item.variant || display.variant_title || '';
       if (variantTitle && variantTitle !== 'Default Title') {
         options.textContent = variantTitle;
         options.style.display = '';
@@ -149,23 +170,22 @@ function renderItems() {
       }
     }
 
+    const qty = item.quantity || 1;
+    const price = item.price || item.unit_price || display.price || 0;
+
     const qtyEl = clone.querySelector('[data-cart="item-quantity"]');
-    if (qtyEl) qtyEl.textContent = item.quantity || 1;
+    if (qtyEl) qtyEl.textContent = qty;
 
     const priceEl = clone.querySelector('[data-cart="item-price"]');
-    if (priceEl) priceEl.textContent = formatPrice(item.price || item.unit_price || 0);
+    if (priceEl) priceEl.textContent = formatPrice(price);
 
     const totalEl = clone.querySelector('[data-cart="item-total"]');
-    if (totalEl) {
-      const lineTotal = (item.price || item.unit_price || 0) * (item.quantity || 1);
-      totalEl.textContent = formatPrice(lineTotal);
-    }
+    if (totalEl) totalEl.textContent = formatPrice(price * qty);
 
     const qtyInput = clone.querySelector('.sm-quantity-field');
-    if (qtyInput) qtyInput.value = item.quantity || 1;
+    if (qtyInput) qtyInput.value = qty;
 
     // Store variant ID on action buttons for this item
-    const variantId = item.variant_id || item.id;
     clone.querySelectorAll('[data-cart="increment"]').forEach(btn => btn.dataset.variantId = variantId);
     clone.querySelectorAll('[data-cart="decrement"]').forEach(btn => btn.dataset.variantId = variantId);
     clone.querySelectorAll('[data-cart="remove"]').forEach(btn => btn.dataset.variantId = variantId);
@@ -231,16 +251,15 @@ function getSelectedVariantFromSmootify(button) {
   const product = button.closest('smootify-product');
   if (!product) return null;
 
-  // Try Smootify's custom element API (may expose product/variant data)
-  if (product.selectedVariant) return product.selectedVariant;
+  // Smootify exposes .variant on the product element (confirmed working)
   if (product.variant) return product.variant;
+  if (product.selectedVariant) return product.selectedVariant;
 
   // Try reading from the add-to-cart form's hidden input
   const addToCart = button.closest('smootify-add-to-cart');
   if (addToCart) {
-    // Smootify may store the selected variant ID in a hidden input or property
+    if (addToCart.variant) return addToCart.variant;
     if (addToCart.selectedVariant) return addToCart.selectedVariant;
-    if (addToCart.variantId) return { id: addToCart.variantId };
 
     const hiddenInput = addToCart.querySelector('input[name="id"], input[name="variant_id"]');
     if (hiddenInput && hiddenInput.value) {
@@ -254,29 +273,27 @@ function getSelectedVariantFromSmootify(button) {
   return null;
 }
 
+function getProductDataFromSmootify(button) {
+  const product = button.closest('smootify-product');
+  if (!product || !product.product) return {};
+  const p = product.product;
+  return {
+    title: p.title || '',
+    handle: p.handle || '',
+    url: p.url || `/product/${p.handle}`,
+    image: p.images?.[0]?.src || p.featuredImage?.src || '',
+  };
+}
+
 function handleAddToCart(button) {
   const session = getSession();
   const variant = getSelectedVariantFromSmootify(button);
+  const productData = getProductDataFromSmootify(button);
 
-  // Debug logging (remove once confirmed working)
   console.log('[CONVOY Cart] Add to cart clicked');
   console.log('[CONVOY Cart] PPcartSession:', session ? 'ready' : 'NOT ready');
-  console.log('[CONVOY Cart] Selected variant:', variant);
-
-  // Also log what Smootify exposes on the product element
-  const product = button.closest('smootify-product');
-  if (product) {
-    console.log('[CONVOY Cart] smootify-product keys:', Object.keys(product));
-    console.log('[CONVOY Cart] smootify-product.product:', product.product);
-    console.log('[CONVOY Cart] smootify-product.selectedVariant:', product.selectedVariant);
-    console.log('[CONVOY Cart] smootify-product.variant:', product.variant);
-  }
-  const addToCart = button.closest('smootify-add-to-cart');
-  if (addToCart) {
-    console.log('[CONVOY Cart] smootify-add-to-cart keys:', Object.keys(addToCart));
-    console.log('[CONVOY Cart] smootify-add-to-cart.selectedVariant:', addToCart.selectedVariant);
-    console.log('[CONVOY Cart] smootify-add-to-cart.variantId:', addToCart.variantId);
-  }
+  console.log('[CONVOY Cart] Variant:', variant);
+  console.log('[CONVOY Cart] Product:', productData);
 
   if (!session) {
     console.warn('[CONVOY Cart] PPcartSession not available — is PreProduct script loaded?');
@@ -288,16 +305,21 @@ function handleAddToCart(button) {
     return;
   }
 
+  // Extract the numeric variant ID from Shopify GID if needed
+  // e.g. "gid://shopify/ProductVariant/12345" → "12345"
+  let variantId = variant.id;
+  if (typeof variantId === 'string' && variantId.includes('gid://')) {
+    variantId = variantId.split('/').pop();
+  }
+
   // Build the item for PPcartSession
   const item = {
-    variant_id: variant.id,
+    variant_id: variantId,
     quantity: 1,
-    // Include product info for cart display
-    title: variant.product_title || variant.title || product?.product?.title || '',
-    price: variant.price || 0,
-    image: variant.image?.src || variant.featured_image?.src || product?.product?.images?.[0]?.src || '',
-    variant_title: variant.title || '',
-    url: product?.product?.url || window.location.pathname,
+    // Selling plan if available (for subscriptions/pre-orders)
+    ...(variant.sellingPlanAllocations?.length > 0 && {
+      selling_plan: variant.sellingPlanAllocations[0].sellingPlan?.id
+    }),
   };
 
   console.log('[CONVOY Cart] Pushing to PPcartSession:', item);
@@ -309,8 +331,18 @@ function handleAddToCart(button) {
     session.forcePush(item);
   }
 
+  // Store product display data locally for cart rendering
+  // (PPcartSession may not return rich product info)
+  storeItemDisplayData(variantId, {
+    title: productData.title,
+    variant_title: variant.title || '',
+    price: variant.price?.amount || variant.price || 0,
+    image: variant.image?.src || productData.image,
+    url: productData.url,
+  });
+
   // Re-render and open drawer
-  renderItems();
+  setTimeout(() => renderItems(), 100); // Small delay for PPcartSession to update
   openDrawer();
 }
 
@@ -465,4 +497,5 @@ export function destroyCart() {
   templateEl = null;
   ppReady = false;
   selectedVariant = null;
+  // Don't clear itemDisplayData — persist across page transitions
 }
