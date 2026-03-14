@@ -116,7 +116,7 @@ function updateCount() {
 function updateTotal() {
   const items = getItems();
   const total = items.reduce((sum, item) => {
-    const price = item.price || item.unit_price || 0;
+    const price = item.unitPrice || item.unitDeposit || 0;
     const qty = item.quantity || 1;
     return sum + (price * qty);
   }, 0);
@@ -152,37 +152,41 @@ function renderItems() {
     clone.removeAttribute('data-cart');
     clone.style.display = '';
 
-    const variantId = item.variant_id || item.id;
+    const variantId = item.id;
     const display = getItemDisplayData(variantId);
 
-    // Populate fields (prefer item data from PPcartSession, fall back to local cache)
+    // PPcartSession field names: name, unitPrice, src, id, quantity
+    const itemTitle = item.name || display.title || '';
+    const itemImage = item.src || display.image || '';
+    const itemPrice = item.unitPrice || item.unitDeposit || display.price || 0;
+    const itemVariantTitle = display.variant_title || '';
+    const itemUrl = display.url || '';
+    const qty = item.quantity || 1;
+
+    // Populate fields
     const img = clone.querySelector('[data-cart="item-image"]');
-    const imageSrc = item.image || display.image;
-    if (img && imageSrc) {
-      img.src = imageSrc;
-      img.alt = item.title || display.title || '';
+    if (img && itemImage) {
+      img.src = itemImage;
+      img.alt = itemTitle;
     }
 
     const title = clone.querySelector('[data-cart="item-title"]');
     if (title) {
-      title.textContent = item.title || item.product_title || display.title || '';
-      const itemUrl = item.url || display.url;
+      title.textContent = itemTitle;
       if (itemUrl) title.href = itemUrl;
     }
 
     const options = clone.querySelector('[data-cart="item-options"]');
     if (options) {
-      const variantTitle = item.variant_title || item.variant || display.variant_title || '';
-      if (variantTitle && variantTitle !== 'Default Title') {
-        options.textContent = variantTitle;
+      if (itemVariantTitle && itemVariantTitle !== 'Default Title') {
+        options.textContent = itemVariantTitle;
         options.style.display = '';
       } else {
         options.style.display = 'none';
       }
     }
 
-    const qty = item.quantity || 1;
-    const price = item.price || item.unit_price || display.price || 0;
+    const price = itemPrice;
 
     const qtyEl = clone.querySelector('[data-cart="item-quantity"]');
     if (qtyEl) qtyEl.textContent = qty;
