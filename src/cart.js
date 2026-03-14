@@ -32,6 +32,7 @@ let ppReady = false;
 let listeners = [];
 let selectedVariant = null; // Tracks Smootify's currently selected variant
 let itemDisplayData = {};   // Local cache of product display info keyed by variant ID
+let removedIds = new Set();  // Track removed variant IDs (PPcartSession has no remove API)
 
 // ---- Helpers ----
 
@@ -51,7 +52,9 @@ function getItems() {
   const session = getSession();
   if (!session) return [];
   const items = session.items;
-  return Array.isArray(items) ? items : [];
+  if (!Array.isArray(items)) return [];
+  // Filter out items the user has removed (PPcartSession has no remove API)
+  return items.filter(i => !removedIds.has(String(i.id)));
 }
 
 function formatPrice(amount) {
@@ -252,23 +255,10 @@ function handleDecrement(variantId) {
 }
 
 function handleRemove(variantId) {
-  const session = getSession();
-  if (!session || !variantId) return;
+  if (!variantId) return;
 
-  if (typeof session.remove === 'function') {
-    session.remove(variantId);
-  } else {
-    // PPcartSession has no remove() — mutate the items array directly
-    const items = session.items;
-    if (Array.isArray(items)) {
-      const idx = items.findIndex(i => i.id == variantId);
-      if (idx !== -1) {
-        items.splice(idx, 1);
-      }
-    }
-  }
-
-  // Clean up display data cache
+  // Add to removed set — getItems() will filter these out
+  removedIds.add(String(variantId));
   delete itemDisplayData[variantId];
   renderItems();
 }
@@ -410,6 +400,9 @@ function handleAddToCart(button) {
   if (sellingPlanId) {
     item.sellingPlan = sellingPlanId;
   }
+
+  // Clear from removed set if re-adding
+  removedIds.delete(String(variantId));
 
   // Push to PreProduct cart
   if (typeof session.push === 'function') {
