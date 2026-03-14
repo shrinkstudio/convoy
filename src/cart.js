@@ -137,6 +137,13 @@ function renderItems() {
   // Clear existing rendered items (but keep template hidden)
   container.querySelectorAll('[data-cart-rendered]').forEach(el => el.remove());
 
+  // Toggle Smootify's is-empty-cart class (hides items/footer via CSS)
+  if (items.length) {
+    els.drawer.classList.remove('is-empty-cart');
+  } else {
+    els.drawer.classList.add('is-empty-cart');
+  }
+
   // Toggle empty state
   const emptyEl = q('empty');
   if (emptyEl) emptyEl.style.display = items.length ? 'none' : '';
@@ -303,11 +310,24 @@ function getProductDataFromSmootify(button) {
   const product = button.closest('smootify-product');
   if (!product || !product.product) return {};
   const p = product.product;
+
+  // Try multiple image sources — Smootify structures vary
+  let image = '';
+  if (p.featuredImage?.src) image = p.featuredImage.src;
+  else if (p.images?.[0]?.src) image = p.images[0].src;
+  else if (typeof p.images?.[0] === 'string') image = p.images[0];
+
+  // Fallback: grab from the page's product image element
+  if (!image) {
+    const imgEl = product.querySelector('img');
+    if (imgEl) image = imgEl.src || imgEl.dataset.src || '';
+  }
+
   return {
     title: p.title || '',
     handle: p.handle || '',
     url: p.url || `/product/${p.handle}`,
-    image: p.images?.[0]?.src || p.featuredImage?.src || '',
+    image,
   };
 }
 
@@ -375,11 +395,17 @@ function handleAddToCart(button) {
 
   // Store product display data locally for cart rendering
   // (PPcartSession may not return rich product info)
+  // Resolve variant image — try variant-specific first, then product-level
+  const variantImage = variant.image?.src
+    || variant.featured_image?.src
+    || (typeof variant.image === 'string' ? variant.image : '')
+    || productData.image;
+
   storeItemDisplayData(variantId, {
     title: productData.title,
     variant_title: variant.title || '',
     price: variant.price?.amount || variant.price || 0,
-    image: variant.image?.src || productData.image,
+    image: variantImage,
     url: productData.url,
   });
 
