@@ -50,10 +50,17 @@ function getSession() {
 function getItems() {
   const session = getSession();
   if (!session) return [];
-  // PPcartSession stores items — try common accessors
-  if (typeof session.getItems === 'function') return session.getItems();
-  if (Array.isArray(session.items)) return session.items;
-  if (session.cart && Array.isArray(session.cart.items)) return session.cart.items;
+  // PPcartSession.items is the confirmed accessor
+  const items = session.items;
+  if (Array.isArray(items)) {
+    if (items.length > 0) {
+      console.log('[CONVOY Cart] Items found:', items.length, items);
+      console.log('[CONVOY Cart] First item keys:', Object.keys(items[0]));
+      console.log('[CONVOY Cart] First item:', items[0]);
+    }
+    return items;
+  }
+  console.log('[CONVOY Cart] No items found on session');
   return [];
 }
 
@@ -119,7 +126,11 @@ function updateTotal() {
 
 function renderItems() {
   const container = els.items;
-  if (!container || !templateEl) return;
+  console.log('[CONVOY Cart] renderItems — container:', !!container, 'templateEl:', !!templateEl);
+  if (!container || !templateEl) {
+    console.warn('[CONVOY Cart] Missing container or template — cannot render');
+    return;
+  }
 
   const items = getItems();
 
