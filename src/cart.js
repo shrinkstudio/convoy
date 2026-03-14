@@ -206,7 +206,18 @@ function renderItems() {
     clone.querySelectorAll('[data-cart="remove"]').forEach(btn => btn.dataset.variantId = variantId);
 
     container.appendChild(clone);
+    console.log('[CONVOY Cart] Appended item clone:', {
+      variantId,
+      title: itemTitle,
+      price: itemPrice,
+      image: itemImage,
+      cloneDisplay: clone.style.display,
+      cloneHTML: clone.outerHTML.substring(0, 200),
+    });
   });
+
+  console.log('[CONVOY Cart] Container children after render:', container.children.length);
+  console.log('[CONVOY Cart] Container innerHTML preview:', container.innerHTML.substring(0, 500));
 
   updateCount();
   updateTotal();
