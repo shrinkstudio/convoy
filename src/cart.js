@@ -307,13 +307,16 @@ function handleAddToCart(button) {
 
   // Extract the numeric variant ID from Shopify GID if needed
   // e.g. "gid://shopify/ProductVariant/12345" → "12345"
-  let variantId = variant.id;
-  if (typeof variantId === 'string' && variantId.includes('gid://')) {
+  let variantId = String(variant.id);
+  if (variantId.includes('gid://')) {
     variantId = variantId.split('/').pop();
   }
+  console.log('[CONVOY Cart] Resolved variant ID:', variantId);
 
   // Build the item for PPcartSession
+  // PPcartSession.push() requires `id` (the variant ID)
   const item = {
+    id: variantId,
     variant_id: variantId,
     quantity: 1,
     // Selling plan if available (for subscriptions/pre-orders)
