@@ -50,31 +50,21 @@ function getSession() {
 function getItems() {
   const session = getSession();
   if (!session) return [];
-  // PPcartSession.items is the confirmed accessor
   const items = session.items;
-  if (Array.isArray(items)) {
-    if (items.length > 0) {
-      console.log('[CONVOY Cart] Items found:', items.length, items);
-      console.log('[CONVOY Cart] First item keys:', Object.keys(items[0]));
-      console.log('[CONVOY Cart] First item:', items[0]);
-    }
-    return items;
-  }
-  console.log('[CONVOY Cart] No items found on session');
-  return [];
+  return Array.isArray(items) ? items : [];
 }
 
 function formatPrice(amount) {
   if (typeof amount === 'string') {
-    // If it's already formatted (e.g. "€2,299"), return as-is
     if (amount.match(/[€£$]/)) return amount;
     amount = parseFloat(amount);
   }
   if (!amount || isNaN(amount)) return '€0.00';
-  // Smootify returns price as a decimal (e.g. 2299.0), not cents
-  // If the value looks like cents (> 10000), divide by 100
-  const value = amount > 10000 ? amount / 100 : amount;
-  return `€${value.toFixed(2)}`;
+  // Format with locale — handles thousands separators
+  return new Intl.NumberFormat('en-IE', {
+    style: 'currency',
+    currency: 'EUR',
+  }).format(amount);
 }
 
 function storeItemDisplayData(variantId, data) {
@@ -92,7 +82,6 @@ function openDrawer() {
   if (!dialog) return;
   dialog.showModal();
   document.body.style.overflow = 'hidden';
-  // Pause Lenis if available
   if (window.__convoyLenis) window.__convoyLenis.stop();
 }
 
@@ -126,11 +115,7 @@ function updateTotal() {
 
 function renderItems() {
   const container = els.items;
-  console.log('[CONVOY Cart] renderItems — container:', !!container, 'templateEl:', !!templateEl);
-  if (!container || !templateEl) {
-    console.warn('[CONVOY Cart] Missing container or template — cannot render');
-    return;
-  }
+  if (!container || !templateEl) return;
 
   const items = getItems();
 
@@ -160,11 +145,6 @@ function renderItems() {
     if (footerEl) footerEl.style.display = '';
 
     if (container) container.style.display = '';
-
-    // Force cart-item custom elements to display
-    container.querySelectorAll('cart-item').forEach(el => {
-      el.style.display = 'block';
-    });
   } else {
     const footerEl = els.drawer?.querySelector('.sm-mini-cart_footer');
     if (footerEl) footerEl.style.display = 'none';
@@ -175,7 +155,7 @@ function renderItems() {
     const clone = templateEl.cloneNode(true);
     clone.setAttribute('data-cart-rendered', '');
     clone.removeAttribute('data-cart');
-    clone.style.display = '';
+    clone.style.display = 'block';
 
     const variantId = item.id;
     const display = getItemDisplayData(variantId);
@@ -188,11 +168,17 @@ function renderItems() {
     const itemUrl = display.url || '';
     const qty = item.quantity || 1;
 
-    // Populate fields
+    // --- Populate fields ---
+
     const img = clone.querySelector('[data-cart="item-image"]');
-    if (img && itemImage) {
-      img.src = itemImage;
-      img.alt = itemTitle;
+    if (img) {
+      if (itemImage) {
+        img.src = itemImage;
+        img.alt = itemTitle;
+      } else {
+        // Hide broken image placeholder
+        img.style.display = 'none';
+      }
     }
 
     const title = clone.querySelector('[data-cart="item-title"]');
@@ -201,9 +187,12 @@ function renderItems() {
       if (itemUrl) title.href = itemUrl;
     }
 
+    // Variant options — replace child content structure
     const options = clone.querySelector('[data-cart="item-options"]');
     if (options) {
       if (itemVariantTitle && itemVariantTitle !== 'Default Title') {
+        // Clear Smootify's Name: value structure, replace with variant title
+        options.innerHTML = '';
         options.textContent = itemVariantTitle;
         options.style.display = '';
       } else {
@@ -211,19 +200,23 @@ function renderItems() {
       }
     }
 
-    const price = itemPrice;
-
     const qtyEl = clone.querySelector('[data-cart="item-quantity"]');
     if (qtyEl) qtyEl.textContent = qty;
 
     const priceEl = clone.querySelector('[data-cart="item-price"]');
-    if (priceEl) priceEl.textContent = formatPrice(price);
+    if (priceEl) priceEl.textContent = formatPrice(itemPrice);
 
     const totalEl = clone.querySelector('[data-cart="item-total"]');
-    if (totalEl) totalEl.textContent = formatPrice(price * qty);
+    if (totalEl) totalEl.textContent = formatPrice(itemPrice * qty);
 
     const qtyInput = clone.querySelector('.sm-quantity-field');
     if (qtyInput) qtyInput.value = qty;
+
+    // --- Hide Smootify-specific elements ---
+
+    // Box items (Smootify bundle feature — not used)
+    const boxItems = clone.querySelector('.sm-box-items');
+    if (boxItems) boxItems.style.display = 'none';
 
     // Store variant ID on action buttons for this item
     clone.querySelectorAll('[data-cart="increment"]').forEach(btn => btn.dataset.variantId = variantId);
@@ -231,18 +224,7 @@ function renderItems() {
     clone.querySelectorAll('[data-cart="remove"]').forEach(btn => btn.dataset.variantId = variantId);
 
     container.appendChild(clone);
-    console.log('[CONVOY Cart] Appended item clone:', {
-      variantId,
-      title: itemTitle,
-      price: itemPrice,
-      image: itemImage,
-      cloneDisplay: clone.style.display,
-      cloneHTML: clone.outerHTML.substring(0, 200),
-    });
   });
-
-  console.log('[CONVOY Cart] Container children after render:', container.children.length);
-  console.log('[CONVOY Cart] Container innerHTML preview:', container.innerHTML.substring(0, 500));
 
   updateCount();
   updateTotal();
@@ -271,13 +253,12 @@ function handleDecrement(variantId) {
 function handleRemove(variantId) {
   const session = getSession();
   if (!session || !variantId) return;
-  // Try common remove methods
   if (typeof session.remove === 'function') {
     session.remove(variantId);
   } else if (typeof session.decrement === 'function') {
     // Fallback: decrement to 0
     const items = getItems();
-    const item = items.find(i => (i.variant_id || i.id) == variantId);
+    const item = items.find(i => i.id == variantId);
     if (item) {
       for (let i = 0; i < (item.quantity || 1); i++) {
         session.decrement(variantId);
@@ -298,15 +279,12 @@ function handleCheckout() {
 // ---- Add to Cart (Product Page → PPcartSession) ----
 
 function getSelectedVariantFromSmootify(button) {
-  // Walk up to find the smootify-product wrapper
   const product = button.closest('smootify-product');
   if (!product) return null;
 
-  // Smootify exposes .variant on the product element (confirmed working)
   if (product.variant) return product.variant;
   if (product.selectedVariant) return product.selectedVariant;
 
-  // Try reading from the add-to-cart form's hidden input
   const addToCart = button.closest('smootify-add-to-cart');
   if (addToCart) {
     if (addToCart.variant) return addToCart.variant;
@@ -318,9 +296,7 @@ function getSelectedVariantFromSmootify(button) {
     }
   }
 
-  // Use tracked variant from smootify:variant_changed event
   if (selectedVariant) return selectedVariant;
-
   return null;
 }
 
@@ -329,16 +305,16 @@ function getProductDataFromSmootify(button) {
   if (!product || !product.product) return {};
   const p = product.product;
 
-  // Try multiple image sources — Smootify structures vary
   let image = '';
   if (p.featuredImage?.src) image = p.featuredImage.src;
+  else if (p.images?.nodes?.[0]?.src) image = p.images.nodes[0].src;
   else if (p.images?.[0]?.src) image = p.images[0].src;
   else if (typeof p.images?.[0] === 'string') image = p.images[0];
 
-  // Fallback: grab from the page's product image element
+  // Fallback: grab from the page's visible product image
   if (!image) {
-    const imgEl = product.querySelector('img');
-    if (imgEl) image = imgEl.src || imgEl.dataset.src || '';
+    const imgEl = product.querySelector('img[src*="shopify"], img[src*="cdn."]');
+    if (imgEl) image = imgEl.src || '';
   }
 
   return {
@@ -354,11 +330,6 @@ function handleAddToCart(button) {
   const variant = getSelectedVariantFromSmootify(button);
   const productData = getProductDataFromSmootify(button);
 
-  console.log('[CONVOY Cart] Add to cart clicked');
-  console.log('[CONVOY Cart] PPcartSession:', session ? 'ready' : 'NOT ready');
-  console.log('[CONVOY Cart] Variant:', variant);
-  console.log('[CONVOY Cart] Product:', productData);
-
   if (!session) {
     console.warn('[CONVOY Cart] PPcartSession not available — is PreProduct script loaded?');
     return;
@@ -369,16 +340,13 @@ function handleAddToCart(button) {
     return;
   }
 
-  // Extract the numeric variant ID from Shopify GID if needed
-  // e.g. "gid://shopify/ProductVariant/12345" → "12345"
+  // Extract numeric variant ID from Shopify GID
   let variantId = String(variant.id);
   if (variantId.includes('gid://')) {
     variantId = variantId.split('/').pop();
   }
-  console.log('[CONVOY Cart] Resolved variant ID:', variantId);
 
   // Extract unit price from Smootify variant
-  // variant.price can be { amount: "2299.0", currencyCode: "EUR" } or a number
   let unitPrice = 0;
   if (variant.price?.amount) {
     unitPrice = parseFloat(variant.price.amount);
@@ -387,12 +355,8 @@ function handleAddToCart(button) {
   } else if (typeof variant.price === 'string') {
     unitPrice = parseFloat(variant.price);
   }
-  console.log('[CONVOY Cart] Unit price:', unitPrice);
 
   // Resolve selling plan ID — required for pre-order items
-  // 1. Try Smootify variant's sellingPlanAllocations
-  // 2. Try PreProduct headless embed on the page
-  // 3. Try PPcartSession's own config
   let sellingPlanId = null;
 
   // Smootify returns GraphQL-style: { nodes: [{ sellingPlan: { id, name } }] }
@@ -402,13 +366,12 @@ function handleAddToCart(button) {
   if (Array.isArray(allocations) && allocations.length > 0) {
     const spa = allocations[0];
     sellingPlanId = spa.sellingPlan?.id || spa.sellingPlanId || spa.id;
-    // Extract numeric ID from GID if needed
     if (sellingPlanId && String(sellingPlanId).includes('gid://')) {
       sellingPlanId = String(sellingPlanId).split('/').pop();
     }
   }
 
-  // Fallback: check PreProduct headless embed for selling plan
+  // Fallback: check PreProduct headless embed on the page
   if (!sellingPlanId) {
     const ppEmbed = document.querySelector('[data-selling-plan]');
     if (ppEmbed) sellingPlanId = ppEmbed.dataset.sellingPlan;
@@ -419,27 +382,20 @@ function handleAddToCart(button) {
     sellingPlanId = session.sellingPlan;
   }
 
-  console.log('[CONVOY Cart] Selling plan ID:', sellingPlanId);
-  console.log('[CONVOY Cart] Variant sellingPlanAllocations:', variant.sellingPlanAllocations);
-  console.log('[CONVOY Cart] Allocations resolved:', allocations);
-  console.log('[CONVOY Cart] Is array?', Array.isArray(allocations), 'Length:', allocations?.length);
-  if (allocations?.[0]) console.log('[CONVOY Cart] First allocation:', JSON.stringify(allocations[0]));
+  // Debug — keep until selling plan is confirmed working
+  console.log('[CONVOY Cart] Add:', { variantId, unitPrice, sellingPlanId });
+  console.log('[CONVOY Cart] Allocations:', allocations);
 
   // Build the item for PPcartSession
-  // PPcartSession.push() requires `id` and `unitPrice`
   const item = {
     id: variantId,
-    variant_id: variantId,
     unitPrice: unitPrice,
     quantity: 1,
   };
 
-  // Add selling plan if found (PPcartSession uses camelCase `sellingPlan`)
   if (sellingPlanId) {
     item.sellingPlan = sellingPlanId;
   }
-
-  console.log('[CONVOY Cart] Pushing to PPcartSession:', item);
 
   // Push to PreProduct cart
   if (typeof session.push === 'function') {
@@ -448,51 +404,35 @@ function handleAddToCart(button) {
     session.forcePush(item);
   }
 
-  // Store product display data locally for cart rendering
-  // (PPcartSession may not return rich product info)
-  // Resolve variant image — try variant-specific first, then product-level
+  // Resolve variant image
   const variantImage = variant.image?.src
     || variant.featured_image?.src
     || (typeof variant.image === 'string' ? variant.image : '')
     || productData.image;
 
+  // Cache product display data for cart rendering
   storeItemDisplayData(variantId, {
     title: productData.title,
     variant_title: variant.title || '',
-    price: variant.price?.amount || variant.price || 0,
+    price: unitPrice,
     image: variantImage,
     url: productData.url,
   });
 
-  // Debug: inspect PPcartSession after push
+  // Render after a brief delay to let PPcartSession process the push
   setTimeout(() => {
-    const s = getSession();
-    console.log('[CONVOY Cart] PPcartSession after push:', s);
-    console.log('[CONVOY Cart] PPcartSession keys:', Object.keys(s));
-    console.log('[CONVOY Cart] PPcartSession.items:', s.items);
-    console.log('[CONVOY Cart] PPcartSession.cart:', s.cart);
-    console.log('[CONVOY Cart] PPcartSession.getItems:', typeof s.getItems === 'function' ? s.getItems() : 'not a function');
-    console.log('[CONVOY Cart] PPcartSession.line_items:', s.line_items);
-    console.log('[CONVOY Cart] PPcartSession.products:', s.products);
-    // Try iterating over all enumerable properties
-    for (const key in s) {
-      if (Array.isArray(s[key]) && s[key].length > 0) {
-        console.log(`[CONVOY Cart] PPcartSession.${key} (array):`, s[key]);
-      }
-    }
     renderItems();
-  }, 500);
+  }, 300);
+
   openDrawer();
 }
 
 function onSmootifyVariantChanged(e) {
-  // Track the selected variant from Smootify's event
   if (e.detail?.variant) {
     selectedVariant = e.detail.variant;
   } else if (e.detail) {
     selectedVariant = e.detail;
   }
-  console.log('[CONVOY Cart] Variant changed:', selectedVariant);
 }
 
 // ---- Event delegation ----
@@ -507,6 +447,7 @@ function onCartClick(e) {
   switch (action) {
     case 'trigger':
       e.preventDefault();
+      renderItems(); // Refresh before opening
       openDrawer();
       break;
     case 'close':
@@ -515,7 +456,7 @@ function onCartClick(e) {
       break;
     case 'add':
       e.preventDefault();
-      e.stopPropagation(); // Prevent Smootify from also handling this
+      e.stopPropagation();
       handleAddToCart(target);
       break;
     case 'increment':
@@ -538,7 +479,6 @@ function onCartClick(e) {
 }
 
 function onDialogBackdropClick(e) {
-  // Close on backdrop click (click on <dialog> itself, not content)
   if (e.target.tagName === 'DIALOG') {
     closeDrawer();
   }
@@ -550,7 +490,6 @@ function onPPCartReady() {
   ppReady = true;
   renderItems();
 
-  // Listen for cart changes if the session supports it
   const session = getSession();
   if (session && typeof session.on === 'function') {
     session.on('change', renderItems);
@@ -558,6 +497,26 @@ function onPPCartReady() {
 }
 
 // ---- Init / Destroy ----
+
+function hideSmootifyCruft(drawer) {
+  // Hide Smootify-specific elements that we don't use
+  const selectors = [
+    'urgent-cart-countdown',      // Countdown timer
+    '.sm-urgent-cart-countdown',
+    'free-shipping-bar',          // Shipping bar
+    '.sm-free-shipping-bar',
+    '.sm-mini-cart_header',       // Contains countdown + shipping bar
+  ];
+
+  selectors.forEach(sel => {
+    const el = drawer.querySelector(sel);
+    if (el) el.style.display = 'none';
+  });
+
+  // Hide "View Cart" link — no cart page for V1
+  const viewCartLink = drawer.querySelector('.sm-button.sm-button--outline');
+  if (viewCartLink) viewCartLink.style.display = 'none';
+}
 
 export function initCart(scope) {
   const root = scope || document;
@@ -573,8 +532,10 @@ export function initCart(scope) {
     templateEl.style.display = 'none';
   }
 
+  // Hide Smootify elements we don't need
+  hideSmootifyCruft(els.drawer);
+
   // Document-level delegation for ALL data-cart actions
-  // (covers both drawer clicks AND product page add-to-cart button)
   document.addEventListener('click', onCartClick);
   listeners.push(['click', onCartClick, document]);
 
@@ -584,7 +545,6 @@ export function initCart(scope) {
     dialog.addEventListener('click', onDialogBackdropClick);
     listeners.push(['click', onDialogBackdropClick, dialog]);
 
-    // Remove the Webflow form wrapper's default submit behaviour
     const form = dialog.querySelector('form');
     if (form) {
       const onSubmit = (e) => e.preventDefault();
@@ -593,12 +553,11 @@ export function initCart(scope) {
     }
   }
 
-  // Also prevent Smootify's add-to-cart form from submitting to Shopify
+  // Prevent Smootify's add-to-cart form from submitting to Shopify
   const productForms = root.querySelectorAll('smootify-add-to-cart form');
   productForms.forEach(form => {
     const onSubmit = (e) => {
       e.preventDefault();
-      // Find the add button and trigger our handler
       const addBtn = form.querySelector('[data-cart="add"]');
       if (addBtn) handleAddToCart(addBtn);
     };
@@ -610,7 +569,6 @@ export function initCart(scope) {
   document.addEventListener('smootify:variant_changed', onSmootifyVariantChanged);
   listeners.push(['smootify:variant_changed', onSmootifyVariantChanged, document]);
 
-  // Also try the more common event name patterns
   document.addEventListener('variant:changed', onSmootifyVariantChanged);
   listeners.push(['variant:changed', onSmootifyVariantChanged, document]);
 
@@ -619,7 +577,6 @@ export function initCart(scope) {
     onPPCartReady();
   }
 
-  // Listen for PPcartSession launch
   window.addEventListener('ppCartSessionLaunched', onPPCartReady);
   listeners.push(['ppCartSessionLaunched', onPPCartReady, window]);
 
