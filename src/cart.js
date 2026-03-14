@@ -313,11 +313,24 @@ function handleAddToCart(button) {
   }
   console.log('[CONVOY Cart] Resolved variant ID:', variantId);
 
+  // Extract unit price from Smootify variant
+  // variant.price can be { amount: "2299.0", currencyCode: "EUR" } or a number
+  let unitPrice = 0;
+  if (variant.price?.amount) {
+    unitPrice = parseFloat(variant.price.amount);
+  } else if (typeof variant.price === 'number') {
+    unitPrice = variant.price;
+  } else if (typeof variant.price === 'string') {
+    unitPrice = parseFloat(variant.price);
+  }
+  console.log('[CONVOY Cart] Unit price:', unitPrice);
+
   // Build the item for PPcartSession
-  // PPcartSession.push() requires `id` (the variant ID)
+  // PPcartSession.push() requires `id` and `unitPrice`
   const item = {
     id: variantId,
     variant_id: variantId,
+    unitPrice: unitPrice,
     quantity: 1,
     // Selling plan if available (for subscriptions/pre-orders)
     ...(variant.sellingPlanAllocations?.length > 0 && {
