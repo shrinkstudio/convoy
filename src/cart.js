@@ -371,6 +371,35 @@ function handleAddToCart(button) {
   }
   console.log('[CONVOY Cart] Unit price:', unitPrice);
 
+  // Resolve selling plan ID — required for pre-order items
+  // 1. Try Smootify variant's sellingPlanAllocations
+  // 2. Try PreProduct headless embed on the page
+  // 3. Try PPcartSession's own config
+  let sellingPlanId = null;
+
+  if (variant.sellingPlanAllocations?.length > 0) {
+    const spa = variant.sellingPlanAllocations[0];
+    sellingPlanId = spa.sellingPlan?.id || spa.sellingPlanId || spa.id;
+    // Extract numeric ID from GID if needed
+    if (sellingPlanId && String(sellingPlanId).includes('gid://')) {
+      sellingPlanId = String(sellingPlanId).split('/').pop();
+    }
+  }
+
+  // Fallback: check PreProduct headless embed for selling plan
+  if (!sellingPlanId) {
+    const ppEmbed = document.querySelector('[data-selling-plan]');
+    if (ppEmbed) sellingPlanId = ppEmbed.dataset.sellingPlan;
+  }
+
+  // Fallback: check PPcartSession for a default selling plan
+  if (!sellingPlanId && session.sellingPlan) {
+    sellingPlanId = session.sellingPlan;
+  }
+
+  console.log('[CONVOY Cart] Selling plan ID:', sellingPlanId);
+  console.log('[CONVOY Cart] Variant sellingPlanAllocations:', variant.sellingPlanAllocations);
+
   // Build the item for PPcartSession
   // PPcartSession.push() requires `id` and `unitPrice`
   const item = {
@@ -378,11 +407,12 @@ function handleAddToCart(button) {
     variant_id: variantId,
     unitPrice: unitPrice,
     quantity: 1,
-    // Selling plan if available (for subscriptions/pre-orders)
-    ...(variant.sellingPlanAllocations?.length > 0 && {
-      selling_plan: variant.sellingPlanAllocations[0].sellingPlan?.id
-    }),
   };
+
+  // Add selling plan if found (PPcartSession uses camelCase `sellingPlan`)
+  if (sellingPlanId) {
+    item.sellingPlan = sellingPlanId;
+  }
 
   console.log('[CONVOY Cart] Pushing to PPcartSession:', item);
 
