@@ -117,7 +117,8 @@ function renderItems() {
   const container = els.items;
   if (!container || !templateEl) return;
 
-  const items = getItems();
+  // Sort by ID for stable render order (PPcartSession may reorder internally)
+  const items = [...getItems()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
 
   // Clear existing rendered items (but keep template hidden)
   container.querySelectorAll('[data-cart-rendered]').forEach(el => el.remove());
@@ -257,25 +258,18 @@ function handleRemove(variantId) {
   if (typeof session.remove === 'function') {
     session.remove(variantId);
   } else {
-    // PPcartSession has no remove() — decrement to 0, then splice from items array
-    const items = getItems();
-    const itemIndex = items.findIndex(i => i.id == variantId);
-    if (itemIndex === -1) return;
-
-    const qty = items[itemIndex].quantity || 1;
-    // Decrement all the way (may stop at 1)
-    for (let i = 0; i < qty; i++) {
-      if (typeof session.decrement === 'function') session.decrement(variantId);
-    }
-
-    // If item is still there after decrementing, force-remove from array
-    const remaining = getItems();
-    const stillThere = remaining.findIndex(i => i.id == variantId);
-    if (stillThere !== -1) {
-      remaining.splice(stillThere, 1);
+    // PPcartSession has no remove() — mutate the items array directly
+    const items = session.items;
+    if (Array.isArray(items)) {
+      const idx = items.findIndex(i => i.id == variantId);
+      if (idx !== -1) {
+        items.splice(idx, 1);
+      }
     }
   }
 
+  // Clean up display data cache
+  delete itemDisplayData[variantId];
   renderItems();
 }
 
@@ -323,11 +317,13 @@ function getProductDataFromSmootify(button) {
   else if (p.images?.[0]?.src) image = p.images[0].src;
   else if (typeof p.images?.[0] === 'string') image = p.images[0];
 
-  // Fallback: grab from the visible product gallery (exclude Webflow placeholders)
+  // Fallback: grab from the visible product gallery/slideshow
   if (!image) {
-    const allImgs = product.querySelectorAll('img');
+    // Try slideshow first (product gallery)
+    const slideshow = product.querySelector('[data-slideshow="wrap"]') || product;
+    const allImgs = slideshow.querySelectorAll('img');
     for (const imgEl of allImgs) {
-      const src = imgEl.src || imgEl.dataset.src || '';
+      const src = imgEl.currentSrc || imgEl.src || imgEl.dataset.src || '';
       if (src && !src.includes('placeholder') && !src.includes('website-files.com/plugins')) {
         image = src;
         break;
