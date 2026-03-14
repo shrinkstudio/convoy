@@ -253,18 +253,29 @@ function handleDecrement(variantId) {
 function handleRemove(variantId) {
   const session = getSession();
   if (!session || !variantId) return;
+
   if (typeof session.remove === 'function') {
     session.remove(variantId);
-  } else if (typeof session.decrement === 'function') {
-    // Fallback: decrement to 0
+  } else {
+    // PPcartSession has no remove() — decrement to 0, then splice from items array
     const items = getItems();
-    const item = items.find(i => i.id == variantId);
-    if (item) {
-      for (let i = 0; i < (item.quantity || 1); i++) {
-        session.decrement(variantId);
-      }
+    const itemIndex = items.findIndex(i => i.id == variantId);
+    if (itemIndex === -1) return;
+
+    const qty = items[itemIndex].quantity || 1;
+    // Decrement all the way (may stop at 1)
+    for (let i = 0; i < qty; i++) {
+      if (typeof session.decrement === 'function') session.decrement(variantId);
+    }
+
+    // If item is still there after decrementing, force-remove from array
+    const remaining = getItems();
+    const stillThere = remaining.findIndex(i => i.id == variantId);
+    if (stillThere !== -1) {
+      remaining.splice(stillThere, 1);
     }
   }
+
   renderItems();
 }
 
@@ -308,13 +319,20 @@ function getProductDataFromSmootify(button) {
   let image = '';
   if (p.featuredImage?.src) image = p.featuredImage.src;
   else if (p.images?.nodes?.[0]?.src) image = p.images.nodes[0].src;
+  else if (p.images?.edges?.[0]?.node?.src) image = p.images.edges[0].node.src;
   else if (p.images?.[0]?.src) image = p.images[0].src;
   else if (typeof p.images?.[0] === 'string') image = p.images[0];
 
-  // Fallback: grab from the page's visible product image
+  // Fallback: grab from the visible product gallery (exclude Webflow placeholders)
   if (!image) {
-    const imgEl = product.querySelector('img[src*="shopify"], img[src*="cdn."]');
-    if (imgEl) image = imgEl.src || '';
+    const allImgs = product.querySelectorAll('img');
+    for (const imgEl of allImgs) {
+      const src = imgEl.src || imgEl.dataset.src || '';
+      if (src && !src.includes('placeholder') && !src.includes('website-files.com/plugins')) {
+        image = src;
+        break;
+      }
+    }
   }
 
   return {
