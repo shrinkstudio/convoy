@@ -377,8 +377,12 @@ function handleAddToCart(button) {
   // 3. Try PPcartSession's own config
   let sellingPlanId = null;
 
-  if (variant.sellingPlanAllocations?.length > 0) {
-    const spa = variant.sellingPlanAllocations[0];
+  // Smootify returns GraphQL-style: { nodes: [{ sellingPlan: { id, name } }] }
+  const allocations = variant.sellingPlanAllocations?.nodes
+    || variant.sellingPlanAllocations;
+
+  if (Array.isArray(allocations) && allocations.length > 0) {
+    const spa = allocations[0];
     sellingPlanId = spa.sellingPlan?.id || spa.sellingPlanId || spa.id;
     // Extract numeric ID from GID if needed
     if (sellingPlanId && String(sellingPlanId).includes('gid://')) {
