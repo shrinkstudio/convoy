@@ -357,8 +357,24 @@ function handleAddToCart(button) {
     url: productData.url,
   });
 
-  // Re-render and open drawer
-  setTimeout(() => renderItems(), 100); // Small delay for PPcartSession to update
+  // Debug: inspect PPcartSession after push
+  setTimeout(() => {
+    const s = getSession();
+    console.log('[CONVOY Cart] PPcartSession after push:', s);
+    console.log('[CONVOY Cart] PPcartSession keys:', Object.keys(s));
+    console.log('[CONVOY Cart] PPcartSession.items:', s.items);
+    console.log('[CONVOY Cart] PPcartSession.cart:', s.cart);
+    console.log('[CONVOY Cart] PPcartSession.getItems:', typeof s.getItems === 'function' ? s.getItems() : 'not a function');
+    console.log('[CONVOY Cart] PPcartSession.line_items:', s.line_items);
+    console.log('[CONVOY Cart] PPcartSession.products:', s.products);
+    // Try iterating over all enumerable properties
+    for (const key in s) {
+      if (Array.isArray(s[key]) && s[key].length > 0) {
+        console.log(`[CONVOY Cart] PPcartSession.${key} (array):`, s[key]);
+      }
+    }
+    renderItems();
+  }, 500);
   openDrawer();
 }
 
