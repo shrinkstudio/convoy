@@ -97,7 +97,15 @@ function getItemDisplayData(variantId) {
 function openDrawer() {
   const dialog = els.drawer?.querySelector('dialog');
   if (!dialog) return;
-  dialog.showModal();
+
+  // Only call showModal if not already open (calling on open dialog throws)
+  if (!dialog.open) {
+    dialog.showModal();
+  }
+
+  // Always force content visible (Smootify CSS may hide it)
+  forceDrawerContentVisible();
+
   document.body.style.overflow = 'hidden';
   if (window.__convoyLenis) window.__convoyLenis.stop();
 }
@@ -105,9 +113,26 @@ function openDrawer() {
 function closeDrawer() {
   const dialog = els.drawer?.querySelector('dialog');
   if (!dialog) return;
-  dialog.close();
+  if (dialog.open) dialog.close();
   document.body.style.overflow = '';
   if (window.__convoyLenis) window.__convoyLenis.start();
+}
+
+function forceDrawerContentVisible() {
+  if (!els.drawer) return;
+
+  // Always keep these visible — Smootify CSS fights us
+  const modalContent = els.drawer.querySelector('.sm-mini-cart__modal-content');
+  if (modalContent) modalContent.style.display = 'block';
+
+  const header = els.drawer.querySelector('.sm-mini-cart__header');
+  if (header) header.style.display = '';
+
+  const formBlock = els.drawer.querySelector('.sm-mini-cart-form-block');
+  if (formBlock) formBlock.style.display = 'block';
+
+  const form = els.drawer.querySelector('.sm-mini-cart_form');
+  if (form) form.style.display = 'block';
 }
 
 // ---- Render ----
@@ -115,6 +140,12 @@ function closeDrawer() {
 function updateCount() {
   const items = getItems();
   const total = items.reduce((sum, item) => sum + (item.quantity || 1), 0);
+  setCount(total);
+  // Override again after a delay — Smootify may reset our count
+  setTimeout(() => setCount(total), 500);
+}
+
+function setCount(total) {
   const countEl = q('count');
   if (countEl) countEl.textContent = total;
 }
@@ -140,31 +171,22 @@ function renderItems() {
   // Clear existing rendered items (but keep template hidden)
   container.querySelectorAll('[data-cart-rendered]').forEach(el => el.remove());
 
-  // Toggle Smootify's is-empty-cart class (hides items/footer via CSS)
-  if (items.length) {
-    els.drawer.classList.remove('is-empty-cart');
-  } else {
-    els.drawer.classList.add('is-empty-cart');
-  }
+  // Always remove Smootify's is-empty-cart — we manage visibility ourselves
+  els.drawer.classList.remove('is-empty-cart');
 
-  // Toggle empty state
+  // Force content containers visible
+  forceDrawerContentVisible();
+
+  // Toggle empty state vs items/footer
   const emptyEl = q('empty');
-  if (emptyEl) emptyEl.style.display = items.length ? 'none' : '';
+  const footerEl = els.drawer?.querySelector('.sm-mini-cart_footer');
 
-  // Force-show all intermediate containers that Smootify CSS may hide
   if (items.length) {
-    const formBlock = els.drawer?.querySelector('.sm-mini-cart-form-block');
-    if (formBlock) formBlock.style.display = 'block';
-
-    const form = els.drawer?.querySelector('.sm-mini-cart_form');
-    if (form) form.style.display = 'block';
-
-    const footerEl = els.drawer?.querySelector('.sm-mini-cart_footer');
+    if (emptyEl) emptyEl.style.display = 'none';
     if (footerEl) footerEl.style.display = '';
-
     if (container) container.style.display = '';
   } else {
-    const footerEl = els.drawer?.querySelector('.sm-mini-cart_footer');
+    if (emptyEl) emptyEl.style.display = '';
     if (footerEl) footerEl.style.display = 'none';
     if (container) container.style.display = 'none';
   }
