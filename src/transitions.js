@@ -18,6 +18,7 @@ import { initFooterParallax, destroyFooterParallax } from './footer-parallax.js'
 import { initCopyClip, destroyCopyClip } from './copy-clip.js';
 import { initProductGallery, destroyProductGallery } from './product-gallery.js';
 import { initCart, destroyCart } from './cart.js';
+import { initLocaleSwitcher, destroyLocaleSwitcher } from './locale-switcher.js';
 
 gsap.registerPlugin(CustomEase);
 if (typeof ScrollTrigger !== 'undefined') gsap.registerPlugin(ScrollTrigger);
@@ -76,6 +77,7 @@ function initBeforeEnterFunctions(next) {
   destroyCopyClip();
   destroyProductGallery();
   destroyCart();
+  destroyLocaleSwitcher();
   destroyModals();
 }
 
@@ -98,6 +100,7 @@ function initAfterEnterFunctions(next) {
   if (has('[data-copy="trigger"]'))   initCopyClip(nextPage);
   if (has('[data-slideshow="wrap"]')) initProductGallery(nextPage);
   if (has('[data-cart="drawer"]'))   initCart(nextPage);
+  if (has('.nav'))                   initLocaleSwitcher(nextPage);
 
   // Webflow IX2 reinit — fixes native nav dropdowns
   if (window.Webflow && window.Webflow.ready) {
