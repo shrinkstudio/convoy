@@ -32,7 +32,21 @@ let ppReady = false;
 let listeners = [];
 let selectedVariant = null; // Tracks Smootify's currently selected variant
 let itemDisplayData = {};   // Local cache of product display info keyed by variant ID
-let removedIds = new Set();  // Track removed variant IDs (PPcartSession has no remove API)
+const REMOVED_KEY = 'convoy_cart_removed';
+let removedIds = loadRemovedIds(); // Track removed variant IDs (PPcartSession has no remove API)
+
+function loadRemovedIds() {
+  try {
+    const stored = sessionStorage.getItem(REMOVED_KEY);
+    return stored ? new Set(JSON.parse(stored)) : new Set();
+  } catch { return new Set(); }
+}
+
+function saveRemovedIds() {
+  try {
+    sessionStorage.setItem(REMOVED_KEY, JSON.stringify([...removedIds]));
+  } catch {}
+}
 
 // ---- Helpers ----
 
@@ -259,6 +273,7 @@ function handleRemove(variantId) {
 
   // Add to removed set — getItems() will filter these out
   removedIds.add(String(variantId));
+  saveRemovedIds();
   delete itemDisplayData[variantId];
   renderItems();
 }
@@ -403,6 +418,7 @@ function handleAddToCart(button) {
 
   // Clear from removed set if re-adding
   removedIds.delete(String(variantId));
+  saveRemovedIds();
 
   // Push to PreProduct cart
   if (typeof session.push === 'function') {
@@ -543,8 +559,32 @@ export function initCart(scope) {
   hideSmootifyCruft(els.drawer);
 
   // Document-level delegation for ALL data-cart actions
-  document.addEventListener('click', onCartClick);
-  listeners.push(['click', onCartClick, document]);
+  // Use capture phase so we fire before Smootify can stopPropagation
+  document.addEventListener('click', onCartClick, true);
+  listeners.push(['click', onCartClick, document, true]);
+
+  // Direct listeners on trigger/close buttons (Smootify may intercept bubbling)
+  const triggerBtn = q('trigger', els.drawer);
+  if (triggerBtn) {
+    const onTrigger = (e) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      renderItems();
+      openDrawer();
+    };
+    triggerBtn.addEventListener('click', onTrigger);
+    listeners.push(['click', onTrigger, triggerBtn]);
+  }
+
+  const closeBtn = q('close', els.drawer);
+  if (closeBtn) {
+    const onClose = (e) => {
+      e.preventDefault();
+      closeDrawer();
+    };
+    closeBtn.addEventListener('click', onClose);
+    listeners.push(['click', onClose, closeBtn]);
+  }
 
   // Dialog backdrop click to close
   const dialog = els.drawer.querySelector('dialog');
@@ -592,8 +632,8 @@ export function initCart(scope) {
 }
 
 export function destroyCart() {
-  listeners.forEach(([evt, fn, target]) => {
-    target.removeEventListener(evt, fn);
+  listeners.forEach(([evt, fn, target, capture]) => {
+    target.removeEventListener(evt, fn, !!capture);
   });
   listeners = [];
   els = {};
