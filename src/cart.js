@@ -32,6 +32,7 @@ let ppReady = false;
 let listeners = [];
 let selectedVariant = null; // Tracks Smootify's currently selected variant
 let itemDisplayData = {};   // Local cache of product display info keyed by variant ID
+let keepOpen = false;       // When true, prevents Smootify from closing the dialog behind our back
 
 // ---- Helpers ----
 
@@ -52,7 +53,8 @@ function getItems() {
   if (!session) return [];
   const items = session.items;
   if (!Array.isArray(items)) return [];
-  return items;
+  // Filter out items decremented to 0 (our remove strategy)
+  return items.filter(i => (i.quantity || 0) > 0);
 }
 
 function formatPrice(amount) {
@@ -82,6 +84,8 @@ function openDrawer() {
   const dialog = els.drawer?.querySelector('dialog');
   if (!dialog) return;
 
+  keepOpen = true;
+
   // Only call showModal if not already open (calling on open dialog throws)
   if (!dialog.open) {
     dialog.showModal();
@@ -97,6 +101,7 @@ function openDrawer() {
 }
 
 function closeDrawer() {
+  keepOpen = false;
   const dialog = els.drawer?.querySelector('dialog');
   if (!dialog) return;
   if (dialog.open) dialog.close();
@@ -126,7 +131,13 @@ function forceDrawerContentVisible() {
     el.style.visibility = 'visible';
     el.style.opacity = '1';
     el.style.pointerEvents = 'auto';
+    el.style.transform = 'none';
   });
+
+  // Also reset transform on the dialog itself (Smootify may scale it)
+  if (dialog) {
+    dialog.style.transform = 'none';
+  }
 }
 
 // ---- Render ----
@@ -147,7 +158,8 @@ function setCount(total) {
 function updateTotal() {
   const items = getItems();
   const total = items.reduce((sum, item) => {
-    const price = item.unitPrice || item.unitDeposit || 0;
+    const display = getItemDisplayData(item.id);
+    const price = display.depositPrice || item.unitDeposit || item.unitPrice || 0;
     const qty = item.quantity || 1;
     return sum + (price * qty);
   }, 0);
@@ -198,7 +210,8 @@ function renderItems() {
     // PPcartSession field names: name, unitPrice, src, id, quantity
     const itemTitle = item.name || display.title || '';
     const itemImage = item.src || display.image || '';
-    const itemPrice = item.unitPrice || item.unitDeposit || display.price || 0;
+    // Prefer deposit price (what the customer actually pays) over full retail price
+    const itemPrice = display.depositPrice || item.unitDeposit || item.unitPrice || display.price || 0;
     const itemVariantTitle = display.variant_title || '';
     const itemUrl = display.url || '';
     const qty = item.quantity || 1;
@@ -293,13 +306,13 @@ function handleRemove(variantId) {
   const session = getSession();
   if (!session) return;
 
-  // Filter out the removed item and save directly to PPcartSession
-  const filtered = (session.items || []).filter(i => String(i.id) !== String(variantId));
-  if (typeof session.save === 'function') {
-    session.save(filtered);
-  } else {
-    // Fallback: overwrite items array directly
-    session.items = filtered;
+  // PPcartSession has no remove API — decrement to 0 instead
+  const item = (session.items || []).find(i => String(i.id) === String(variantId));
+  if (item && typeof session.decrement === 'function') {
+    const qty = item.quantity || 1;
+    for (let i = 0; i < qty; i++) {
+      session.decrement(variantId);
+    }
   }
 
   delete itemDisplayData[variantId];
@@ -308,10 +321,23 @@ function handleRemove(variantId) {
 
 function handleCheckout() {
   const session = getSession();
-  if (!session) return;
-  if (typeof session.submit === 'function') {
-    session.submit();
+  if (!session) {
+    console.warn('[CONVOY Cart] No PPcartSession for checkout');
+    return;
   }
+  const items = getItems();
+  if (!items.length) {
+    console.warn('[CONVOY Cart] Cart is empty — nothing to checkout');
+    return;
+  }
+  console.log('[CONVOY Cart] Submitting checkout:', items);
+  closeDrawer();
+  // Brief delay to let dialog close before PreProduct redirects
+  setTimeout(() => {
+    if (typeof session.submit === 'function') {
+      session.submit();
+    }
+  }, 100);
 }
 
 // ---- Add to Cart (Product Page → PPcartSession) ----
@@ -410,11 +436,21 @@ function handleAddToCart(button) {
   const allocations = variant.sellingPlanAllocations?.nodes
     || variant.sellingPlanAllocations;
 
+  let depositPrice = 0;
+
   if (Array.isArray(allocations) && allocations.length > 0) {
     const spa = allocations[0];
     sellingPlanId = spa.sellingPlan?.id || spa.sellingPlanId || spa.id;
     if (sellingPlanId && String(sellingPlanId).includes('gid://')) {
       sellingPlanId = String(sellingPlanId).split('/').pop();
+    }
+
+    // Extract deposit price from selling plan price adjustments
+    const adj = spa.priceAdjustments?.[0] || spa.price_adjustments?.[0];
+    if (adj?.price?.amount) {
+      depositPrice = parseFloat(adj.price.amount);
+    } else if (adj?.perDeliveryPrice?.amount) {
+      depositPrice = parseFloat(adj.perDeliveryPrice.amount);
     }
   }
 
@@ -430,7 +466,7 @@ function handleAddToCart(button) {
   }
 
   // Debug — keep until selling plan is confirmed working
-  console.log('[CONVOY Cart] Add:', { variantId, unitPrice, sellingPlanId });
+  console.log('[CONVOY Cart] Add:', { variantId, unitPrice, depositPrice, sellingPlanId });
   console.log('[CONVOY Cart] Allocations:', allocations);
 
   // Build the item for PPcartSession
@@ -462,6 +498,7 @@ function handleAddToCart(button) {
     title: productData.title,
     variant_title: variant.title || '',
     price: unitPrice,
+    depositPrice: depositPrice || 0,
     image: variantImage,
     url: productData.url,
   });
@@ -625,6 +662,18 @@ export function initCart(scope) {
     dialog.addEventListener('click', onDialogBackdropClick);
     listeners.push(['click', onDialogBackdropClick, dialog]);
 
+    // Guard: if Smootify closes the dialog while we want it open, re-open it
+    const onDialogClose = () => {
+      if (keepOpen) {
+        requestAnimationFrame(() => {
+          if (!dialog.open) dialog.showModal();
+          forceDrawerContentVisible();
+        });
+      }
+    };
+    dialog.addEventListener('close', onDialogClose);
+    listeners.push(['close', onDialogClose, dialog]);
+
     const form = dialog.querySelector('form');
     if (form) {
       const onSubmit = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };
@@ -674,5 +723,6 @@ export function destroyCart() {
   templateHTML = '';
   ppReady = false;
   selectedVariant = null;
+  keepOpen = false;
   // Don't clear itemDisplayData — persist across page transitions
 }
