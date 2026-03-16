@@ -82,6 +82,7 @@ function initBeforeEnterFunctions(next) {
   destroyCart();
   destroyLocaleSwitcher();
   destroyHoverList();
+  destroyStaggerChildren();
   destroyModals();
 }
 
@@ -107,10 +108,13 @@ function initAfterEnterFunctions(next) {
   if (has('.nav'))                   initLocaleSwitcher(nextPage);
   if (has('[data-hover-list]'))     initHoverList(nextPage);
 
-  // Webflow IX2 reinit — fixes native nav dropdowns
+  // Webflow IX2/IX3 reinit — fixes native nav dropdowns
   if (window.Webflow && window.Webflow.ready) {
     window.Webflow.ready();
   }
+
+  // IX3 stagger-children — reinit scroll-triggered entrance animations
+  if (hasScrollTrigger) reinitStaggerChildren(nextPage);
 
   if(hasLenis){
     lenis.resize();
@@ -495,6 +499,48 @@ function initBarbaNavUpdate(data) {
     var newClassList = next.getAttribute('class') || '';
     curr.setAttribute('class', newClassList);
   });
+}
+
+
+// -----------------------------------------
+// IX3 STAGGER-CHILDREN REINIT
+// Recreates the scroll-triggered entrance animation
+// that IX3 sets up on initial load but doesn't
+// reinitialise after Barba page transitions.
+// -----------------------------------------
+
+let staggerTriggers = [];
+
+function reinitStaggerChildren(scope) {
+  scope = scope || document;
+
+  scope.querySelectorAll('[data-animate="stagger-children"]').forEach(el => {
+    const children = el.children;
+    if (!children.length) return;
+
+    gsap.set(children, { autoAlpha: 0 });
+
+    const trigger = ScrollTrigger.create({
+      trigger: el,
+      start: 'top 90%',
+      once: true,
+      onEnter: () => {
+        gsap.to(children, {
+          autoAlpha: 1,
+          duration: 0.4,
+          stagger: 0.1,
+          ease: 'power1.out',
+        });
+      },
+    });
+
+    staggerTriggers.push(trigger);
+  });
+}
+
+function destroyStaggerChildren() {
+  staggerTriggers.forEach(t => t.kill());
+  staggerTriggers = [];
 }
 
 
