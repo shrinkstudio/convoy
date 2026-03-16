@@ -6,6 +6,10 @@
 // Theme flash prevention — runs immediately at bundle load time
 import './theme-toggle.js';
 
-// Core transition system (Barba + GSAP + Lenis)
-// Also imports and registers all MAST components in the function registry
+// Core init system — imports and registers all components
 import './transitions.js';
+
+// Hide Smootify debugger
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.sm-debugger, smootify-debugger').forEach(el => el.remove());
+});

@@ -44,7 +44,8 @@ const has = (s) => !!document.querySelector(s);
 
 function initAll() {
   // One-time setup
-  initLenis();
+  // Lenis disabled for MVP — no Barba lifecycle to manage start/stop
+  // initLenis();
   initModalDelegation();
   initFontSizeDetect();
   initSkipLink();
