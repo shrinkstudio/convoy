@@ -5,6 +5,7 @@
 let instances = [];
 
 function initSlideShow(el) {
+  if (typeof Observer === 'undefined') return;
   gsap.registerPlugin(Observer, CustomEase);
   CustomEase.create("slideshow-wipe", "0.6, 0.08, 0.02, 0.99");
 
