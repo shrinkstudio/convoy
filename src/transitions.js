@@ -1,46 +1,33 @@
 // -----------------------------------------
-// CONVOY — PAGE TRANSITION BOILERPLATE
-// Barba.js + GSAP + Lenis + Card-Stack Transition
+// CONVOY — SCRIPT INITIALISATION
+// No page transitions for MVP — full page reloads.
+// Barba transition code preserved in git history.
 // -----------------------------------------
 
 import { initThemeToggle } from './theme-toggle.js';
-import { initAccordions, destroyAccordions } from './accordion.js';
-import { initTabs, destroyTabs } from './tabs.js';
-import { initSliders, destroySliders } from './slider.js';
-import { initInlineVideos, destroyInlineVideos } from './inline-video.js';
-import { initModalDelegation, initModals, destroyModals } from './modal.js';
+import { initAccordions } from './accordion.js';
+import { initTabs } from './tabs.js';
+import { initSliders } from './slider.js';
+import { initInlineVideos } from './inline-video.js';
+import { initModalDelegation, initModals } from './modal.js';
 import { initFontSizeDetect, initFooterYear, initSkipLink } from './utilities.js';
-import { initNavScrollHide, destroyNavScrollHide } from './nav.js';
-import { initBunnyBackground, destroyBunnyBackground } from './bunny-video.js';
-import { initParallax, destroyParallax } from './parallax.js';
-import { initStackingCards, destroyStackingCards } from './stacking-cards.js';
-import { initFooterParallax, destroyFooterParallax } from './footer-parallax.js';
-import { initCopyClip, destroyCopyClip } from './copy-clip.js';
-import { initProductGallery, destroyProductGallery } from './product-gallery.js';
-import { initCart, destroyCart } from './cart.js';
-// locale-switcher: built as Webflow elements, JS handles active state only
-import { initLocaleSwitcher, destroyLocaleSwitcher } from './locale-switcher.js';
-import { initHoverList, destroyHoverList } from './hover-list.js';
+import { initNavScrollHide } from './nav.js';
+import { initBunnyBackground } from './bunny-video.js';
+import { initParallax } from './parallax.js';
+import { initStackingCards } from './stacking-cards.js';
+import { initFooterParallax } from './footer-parallax.js';
+import { initCopyClip } from './copy-clip.js';
+import { initProductGallery } from './product-gallery.js';
+import { initCart } from './cart.js';
+import { initLocaleSwitcher } from './locale-switcher.js';
+import { initHoverList } from './hover-list.js';
 
 gsap.registerPlugin(CustomEase);
 if (typeof ScrollTrigger !== 'undefined') gsap.registerPlugin(ScrollTrigger);
 if (typeof Flip !== 'undefined') gsap.registerPlugin(Flip);
 
-history.scrollRestoration = "manual";
-
-let lenis = null;
-let nextPage = document;
-let onceFunctionsInitialized = false;
-
 const hasLenis = typeof window.Lenis !== "undefined";
 const hasScrollTrigger = typeof window.ScrollTrigger !== "undefined";
-
-const rmMQ = window.matchMedia("(prefers-reduced-motion: reduce)");
-let reducedMotion = rmMQ.matches;
-rmMQ.addEventListener?.("change", e => (reducedMotion = e.matches));
-rmMQ.addListener?.(e => (reducedMotion = e.matches));
-
-const has = (s) => !!nextPage.querySelector(s);
 
 let staggerDefault = 0.05;
 let durationDefault = 0.6;
@@ -48,389 +35,48 @@ let durationDefault = 0.6;
 CustomEase.create("osmo", "0.625, 0.05, 0, 1");
 gsap.defaults({ ease: "osmo", duration: durationDefault });
 
+const has = (s) => !!document.querySelector(s);
+
 
 // -----------------------------------------
-// FUNCTION REGISTRY
+// INIT ON LOAD
 // -----------------------------------------
 
-function initOnceFunctions() {
+function initAll() {
+  // One-time setup
   initLenis();
-  if (onceFunctionsInitialized) return;
-  onceFunctionsInitialized = true;
-
-  // Document-level delegation (bind once)
   initModalDelegation();
   initFontSizeDetect();
   initSkipLink();
+
+  // Per-page components
+  if (has('.nav'))                       initNavScrollHide(document);
+  if (has('[data-theme-toggle]'))       initThemeToggle(document);
+  if (has('details'))                   initAccordions(document);
+  if (has('[data-tabs-component]'))     initTabs(document);
+  if (has('[data-slider]'))             initSliders(document);
+  if (has('[data-video]'))              initInlineVideos(document);
+  if (has('[data-bunny-background-init]')) initBunnyBackground(document);
+  if (has('dialog'))                    initModals(document);
+  if (has('[data-parallax="trigger"]')) initParallax(document);
+  if (has('[data-stacking-cards-item]')) initStackingCards(document);
+  if (has('[data-footer-parallax]'))    initFooterParallax(document);
+  if (has('[data-footer-year]'))        initFooterYear(document);
+  if (has('[data-copy="trigger"]'))     initCopyClip(document);
+  if (has('[data-slideshow="wrap"]'))   initProductGallery(document);
+  if (has('[data-cart="drawer"]'))      initCart(document);
+  if (has('.nav'))                      initLocaleSwitcher(document);
+  if (has('[data-hover-list]'))         initHoverList(document);
 }
 
-function initBeforeEnterFunctions(next) {
-  nextPage = next || document;
-
-  // Destroy old instances before new page enters
-  destroyNavScrollHide();
-  destroyAccordions();
-  destroyTabs();
-  destroySliders();
-  destroyInlineVideos();
-  destroyBunnyBackground();
-  destroyParallax();
-  destroyStackingCards();
-  destroyFooterParallax();
-  destroyCopyClip();
-  destroyProductGallery();
-  destroyCart();
-  destroyLocaleSwitcher();
-  destroyHoverList();
-  destroyStaggerChildren();
-  destroyModals();
-}
-
-function initAfterEnterFunctions(next) {
-  nextPage = next || document;
-
-  // Init components on new page
-  if (has('.nav'))                     initNavScrollHide(nextPage);
-  if (has('[data-theme-toggle]'))     initThemeToggle(nextPage);
-  if (has('details'))                 initAccordions(nextPage);
-  if (has('[data-tabs-component]'))   initTabs(nextPage);
-  if (has('[data-slider]'))           initSliders(nextPage);
-  if (has('[data-video]'))            initInlineVideos(nextPage);
-  if (has('[data-bunny-background-init]')) initBunnyBackground(nextPage);
-  if (has('dialog'))                  initModals(nextPage);
-  if (has('[data-parallax="trigger"]')) initParallax(nextPage);
-  if (has('[data-stacking-cards-item]')) initStackingCards(nextPage);
-  if (has('[data-footer-parallax]'))   initFooterParallax(nextPage);
-  if (has('[data-footer-year]'))       initFooterYear(nextPage);
-  if (has('[data-copy="trigger"]'))   initCopyClip(nextPage);
-  if (has('[data-slideshow="wrap"]')) initProductGallery(nextPage);
-  if (has('[data-cart="drawer"]'))   initCart(nextPage);
-  if (has('.nav'))                   initLocaleSwitcher(nextPage);
-  if (has('[data-hover-list]'))     initHoverList(nextPage);
-
-  // Webflow IX2/IX3 reinit — fixes native nav dropdowns
-  if (window.Webflow && window.Webflow.ready) {
-    window.Webflow.ready();
-  }
-
-  // IX3 stagger-children — reinit scroll-triggered entrance animations
-  if (hasScrollTrigger) reinitStaggerChildren(nextPage);
-
-  if(hasLenis){
-    lenis.resize();
-  }
-
-  if (hasScrollTrigger) {
-    ScrollTrigger.refresh();
-  }
-}
+initAll();
 
 
 // -----------------------------------------
-// PAGE TRANSITIONS (Card-Stack)
+// LENIS SMOOTH SCROLL
 // -----------------------------------------
 
-function runPageOnceAnimation(next) {
-  const tl = gsap.timeline();
-
-  tl.call(() => {
-    resetPage(next)
-  }, null, 0);
-
-  return tl;
-}
-
-function runPageLeaveAnimation(current, next) {
-  const parent = current.parentElement || document.body;
-
-  const { wrapper } = prepareForTransition(parent, current, next);
-
-  const transitionWrap = document.querySelector("[data-transition-wrap]");
-  const transitionMiddle = transitionWrap.querySelector("[data-transition-middle]");
-  const navigation = next.querySelector(".nav");
-
-  const tl = gsap.timeline({
-    onComplete: () => {
-      wrapper.remove();
-      gsap.set(parent, { clearProps: "perspective,transformStyle,overflow" });
-      gsap.set(next, { clearProps: "position,inset,width,height,overflow,zIndex,transformStyle,willChange,backfaceVisibility,transform,clipPath" });
-      gsap.set(transitionWrap, { autoAlpha: 0, pointerEvents: "none", zIndex: -1 });
-      gsap.set(transitionMiddle, { clearProps: "willChange,scale,yPercent,clipPath" });
-    },
-  });
-
-  if (reducedMotion) {
-    return tl.set(current, { autoAlpha: 0 });
-  }
-
-  tl.to([wrapper, transitionMiddle, next], {
-    clipPath: "rect(0% 100% 100% 0% round 1em)",
-    duration: 0.8,
-  }, 0);
-
-  tl.to(wrapper, {
-    scale: "0.95",
-    duration: 1.2,
-    yPercent: 20,
-    ease: "expo.inOut",
-    overwrite: "auto"
-  }, "<");
-
-  tl.to(transitionMiddle, {
-    scale: "0.875",
-    yPercent: 10,
-    duration: 1.2,
-    ease: "expo.inOut",
-    overwrite: "auto"
-  }, "<");
-
-  tl.to(next, {
-    scale: "0.8",
-    yPercent: 0,
-    duration: 1.2,
-    ease: "expo.inOut",
-    overwrite: "auto"
-  }, "<");
-
-  tl.to(wrapper, {
-    yPercent: 130,
-    duration: 1.2,
-    ease: "osmo",
-  }, "< 0.9");
-
-  tl.to(transitionMiddle, {
-    yPercent: 120,
-    duration: 1.2,
-    ease: "osmo",
-  }, "< 0.15");
-
-  tl.to(next, {
-    scale: "1",
-    yPercent: 0,
-    duration: 1.2,
-    ease: "expo.inOut",
-    overwrite: "auto"
-  }, "< 0.15");
-
-  tl.to([wrapper, transitionMiddle, next], {
-    clipPath: "rect(0% 100% 100% 0% round 0em)",
-    duration: 0.8,
-    ease: "osmo",
-  }, "> -0.8");
-
-  if (navigation) {
-    tl.from(navigation, {
-      yPercent: -100,
-      duration: 1.2,
-      ease: "osmo",
-    }, "< -0.1");
-  }
-
-  return tl;
-}
-
-function runPageEnterAnimation(next){
-  const tl = gsap.timeline();
-
-  if (reducedMotion) {
-    tl.set(next, { autoAlpha: 1 });
-    tl.add("pageReady")
-    tl.call(resetPage, [next], "pageReady");
-    return new Promise(resolve => tl.call(resolve, null, "pageReady"));
-  }
-
-  // Don't call resetPage here — the leave animation's onComplete handles cleanup.
-  // Calling it at time 0 strips position:fixed from next, pulling it out of the card stack.
-  tl.add("pageReady");
-
-  return new Promise(resolve => {
-    tl.call(resolve, null, "pageReady");
-  });
-}
-
-function prepareForTransition(parent, current, next){
-  const wrapper = document.createElement("div");
-  wrapper.className = "page-transition__wrapper";
-
-  parent.insertBefore(wrapper, current);
-  wrapper.appendChild(current);
-
-  const scrollY = window.scrollY || 0;
-  window.scrollTo(0, 0);
-
-  const transitionWrap = document.querySelector("[data-transition-wrap]");
-  const transitionMiddle = transitionWrap.querySelector("[data-transition-middle]");
-
-  gsap.set(parent, {
-    perspective: "100vw",
-    transformStyle: "preserve-3d",
-    overflow: "clip",
-  });
-
-  gsap.set(wrapper, {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    width: "100%",
-    height: "100vh",
-    overflow: "clip",
-    zIndex: 3,
-    transformStyle: "preserve-3d",
-    willChange: "transform",
-    clipPath: "rect(0% 100% 100% 0% round 0em)"
-  });
-
-  gsap.set(current, {
-    position: "absolute",
-    top: -scrollY,
-    left: 0,
-    width: "100%",
-    willChange: "transform, opacity",
-    backfaceVisibility: "hidden",
-  });
-
-  gsap.set(transitionWrap, {
-    zIndex: 2,
-    autoAlpha: 1,
-    pointerEvents: "auto",
-  });
-
-  gsap.set(transitionMiddle, {
-    willChange: "transform, opacity",
-    autoAlpha: 1,
-    yPercent: 0,
-    scale: 1,
-    clipPath: "rect(0% 100% 100% 0% round 0em)"
-  });
-
-  gsap.set(next, {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    width: "100%",
-    height: "100vh",
-    overflow: "clip",
-    zIndex: 1,
-    transformStyle: "preserve-3d",
-    willChange: "transform, opacity",
-    backfaceVisibility: "hidden",
-    autoAlpha: 1,
-    yPercent: 0,
-    scale: 1,
-    clipPath: "rect(0% 100% 100% 0% round 0em)"
-  });
-
-  return { wrapper, scrollY };
-}
-
-
-// -----------------------------------------
-// BARBA HOOKS + INIT
-// -----------------------------------------
-
-barba.hooks.beforeEnter(data => {
-  gsap.set(data.next.container, {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-  });
-
-  if (lenis && typeof lenis.stop === "function") {
-    lenis.stop();
-  }
-
-  initBeforeEnterFunctions(data.next.container);
-  applyThemeFrom(data.next.container);
-});
-
-barba.hooks.afterLeave(() => {
-  if(hasScrollTrigger){
-    ScrollTrigger.getAll().forEach(trigger => trigger.kill());
-  }
-});
-
-barba.hooks.enter(data => {
-  initBarbaNavUpdate(data);
-})
-
-barba.hooks.afterEnter(data => {
-  initAfterEnterFunctions(data.next.container);
-
-  if(hasLenis){
-    lenis.resize();
-    lenis.start();
-  }
-
-  if(hasScrollTrigger){
-    ScrollTrigger.refresh();
-  }
-});
-
-barba.init({
-  debug: false,
-  timeout: 7000,
-  preventRunning: true,
-  prevent: ({ el }) => {
-    // Force full page load to/from product pages (Smootify has no reinit API)
-    if (el?.href && new URL(el.href, location.origin).pathname.startsWith('/product/')) return true;
-    if (location.pathname.startsWith('/product/')) return true;
-    return false;
-  },
-  transitions: [
-    {
-      name: "default",
-      sync: true,
-
-      async once(data) {
-        initOnceFunctions();
-        return runPageOnceAnimation(data.next.container);
-      },
-
-      async leave(data) {
-        return runPageLeaveAnimation(data.current.container, data.next.container);
-      },
-
-      async enter(data) {
-        return runPageEnterAnimation(data.next.container);
-      }
-    }
-  ],
-});
-
-
-// -----------------------------------------
-// GENERIC + HELPERS
-// -----------------------------------------
-
-const themeConfig = {
-  light: {
-    nav: "dark",
-    transition: "light"
-  },
-  dark: {
-    nav: "light",
-    transition: "dark"
-  }
-};
-
-function applyThemeFrom(container) {
-  const pageTheme = container?.dataset?.pageTheme || "light";
-  const config = themeConfig[pageTheme] || themeConfig.light;
-
-  document.body.dataset.pageTheme = pageTheme;
-  const transitionEl = document.querySelector('[data-theme-transition]');
-  if (transitionEl) {
-    transitionEl.dataset.themeTransition = config.transition;
-  }
-
-  const nav = document.querySelector('[data-theme-nav]');
-  if (nav) {
-    nav.dataset.themeNav = config.nav;
-  }
-}
+let lenis = null;
 
 function initLenis() {
   if (lenis) return;
@@ -441,7 +87,6 @@ function initLenis() {
     wheelMultiplier: 1.25,
   });
 
-  // Expose for nav scroll hide and other scripts
   window.__convoyLenis = lenis;
 
   if (hasScrollTrigger) {
@@ -454,96 +99,3 @@ function initLenis() {
 
   gsap.ticker.lagSmoothing(0);
 }
-
-function resetPage(container){
-  window.scrollTo(0, 0);
-  gsap.set(container, { clearProps: "position,top,left,right" });
-
-  if(hasLenis){
-    lenis.resize();
-    lenis.start();
-  }
-}
-
-function debounceOnWidthChange(fn, ms) {
-  let last = innerWidth,
-    timer;
-  return function (...args) {
-    clearTimeout(timer);
-    timer = setTimeout(() => {
-      if (innerWidth !== last) {
-        last = innerWidth;
-        fn.apply(this, args);
-      }
-    }, ms);
-  };
-}
-
-function initBarbaNavUpdate(data) {
-  var tpl = document.createElement('template');
-  tpl.innerHTML = data.next.html.trim();
-  var nextNodes = tpl.content.querySelectorAll('[data-barba-update]');
-  var currentNodes = document.querySelectorAll('nav [data-barba-update]');
-
-  currentNodes.forEach(function (curr, index) {
-    var next = nextNodes[index];
-    if (!next) return;
-
-    var newStatus = next.getAttribute('aria-current');
-    if (newStatus !== null) {
-      curr.setAttribute('aria-current', newStatus);
-    } else {
-      curr.removeAttribute('aria-current');
-    }
-
-    var newClassList = next.getAttribute('class') || '';
-    curr.setAttribute('class', newClassList);
-  });
-}
-
-
-// -----------------------------------------
-// IX3 STAGGER-CHILDREN REINIT
-// Recreates the scroll-triggered entrance animation
-// that IX3 sets up on initial load but doesn't
-// reinitialise after Barba page transitions.
-// -----------------------------------------
-
-let staggerTriggers = [];
-
-function reinitStaggerChildren(scope) {
-  scope = scope || document;
-
-  scope.querySelectorAll('[data-animate="stagger-children"]').forEach(el => {
-    const children = el.children;
-    if (!children.length) return;
-
-    gsap.set(children, { autoAlpha: 0 });
-
-    const trigger = ScrollTrigger.create({
-      trigger: el,
-      start: 'top 90%',
-      once: true,
-      onEnter: () => {
-        gsap.to(children, {
-          autoAlpha: 1,
-          duration: 0.4,
-          stagger: 0.1,
-          ease: 'power1.out',
-        });
-      },
-    });
-
-    staggerTriggers.push(trigger);
-  });
-}
-
-function destroyStaggerChildren() {
-  staggerTriggers.forEach(t => t.kill());
-  staggerTriggers = [];
-}
-
-
-// -----------------------------------------
-// YOUR FUNCTIONS GO BELOW HERE
-// -----------------------------------------
