@@ -22,30 +22,27 @@ import { initCart } from './cart.js';
 import { initLocaleSwitcher } from './locale-switcher.js';
 import { initHoverList } from './hover-list.js';
 
-gsap.registerPlugin(CustomEase);
-if (typeof ScrollTrigger !== 'undefined') gsap.registerPlugin(ScrollTrigger);
-if (typeof Flip !== 'undefined') gsap.registerPlugin(Flip);
-
-const hasLenis = typeof window.Lenis !== "undefined";
-const hasScrollTrigger = typeof window.ScrollTrigger !== "undefined";
-
-let staggerDefault = 0.05;
-let durationDefault = 0.6;
-
-CustomEase.create("osmo", "0.625, 0.05, 0, 1");
-gsap.defaults({ ease: "osmo", duration: durationDefault });
-
 const has = (s) => !!document.querySelector(s);
 
 
 // -----------------------------------------
-// INIT ON LOAD
+// REGISTER PLUGINS & INIT ON LOAD
 // -----------------------------------------
 
+function registerPlugins() {
+  gsap.registerPlugin(CustomEase);
+  if (typeof ScrollTrigger !== 'undefined') gsap.registerPlugin(ScrollTrigger);
+  if (typeof Flip !== 'undefined') gsap.registerPlugin(Flip);
+  if (typeof Observer !== 'undefined') gsap.registerPlugin(Observer);
+
+  CustomEase.create("osmo", "0.625, 0.05, 0, 1");
+  gsap.defaults({ ease: "osmo", duration: 0.6 });
+}
+
 function initAll() {
+  registerPlugins();
+
   // One-time setup
-  // Lenis disabled for MVP — no Barba lifecycle to manage start/stop
-  // initLenis();
   initModalDelegation();
   initFontSizeDetect();
   initSkipLink();
@@ -70,33 +67,10 @@ function initAll() {
   if (has('[data-hover-list]'))         initHoverList(document);
 }
 
-initAll();
-
-
-// -----------------------------------------
-// LENIS SMOOTH SCROLL
-// -----------------------------------------
-
-let lenis = null;
-
-function initLenis() {
-  if (lenis) return;
-  if (!hasLenis) return;
-
-  lenis = new Lenis({
-    lerp: 0.165,
-    wheelMultiplier: 1.25,
-  });
-
-  window.__convoyLenis = lenis;
-
-  if (hasScrollTrigger) {
-    lenis.on("scroll", ScrollTrigger.update);
-  }
-
-  gsap.ticker.add((time) => {
-    lenis.raf(time * 1000);
-  });
-
-  gsap.ticker.lagSmoothing(0);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initAll);
+} else {
+  initAll();
 }
+
+
