@@ -27,26 +27,11 @@
 // -----------------------------------------
 
 let els = {};
-let templateEl = null;
+let templateHTML = ''; // Sanitized HTML string (Web Component tags replaced with divs)
 let ppReady = false;
 let listeners = [];
 let selectedVariant = null; // Tracks Smootify's currently selected variant
 let itemDisplayData = {};   // Local cache of product display info keyed by variant ID
-const REMOVED_KEY = 'convoy_cart_removed';
-let removedIds = loadRemovedIds(); // Track removed variant IDs (PPcartSession has no remove API)
-
-function loadRemovedIds() {
-  try {
-    const stored = sessionStorage.getItem(REMOVED_KEY);
-    return stored ? new Set(JSON.parse(stored)) : new Set();
-  } catch { return new Set(); }
-}
-
-function saveRemovedIds() {
-  try {
-    sessionStorage.setItem(REMOVED_KEY, JSON.stringify([...removedIds]));
-  } catch {}
-}
 
 // ---- Helpers ----
 
@@ -67,8 +52,7 @@ function getItems() {
   if (!session) return [];
   const items = session.items;
   if (!Array.isArray(items)) return [];
-  // Filter out items the user has removed (PPcartSession has no remove API)
-  return items.filter(i => !removedIds.has(String(i.id)));
+  return items;
 }
 
 function formatPrice(amount) {
@@ -103,8 +87,10 @@ function openDrawer() {
     dialog.showModal();
   }
 
-  // Always force content visible (Smootify CSS may hide it)
+  // Triple-tap: override Smootify's sync and async reactions to close/open
   forceDrawerContentVisible();
+  requestAnimationFrame(() => forceDrawerContentVisible());
+  setTimeout(() => forceDrawerContentVisible(), 100);
 
   document.body.style.overflow = 'hidden';
   if (window.__convoyLenis) window.__convoyLenis.stop();
@@ -121,18 +107,26 @@ function closeDrawer() {
 function forceDrawerContentVisible() {
   if (!els.drawer) return;
 
-  // Always keep these visible — Smootify CSS fights us
-  const modalContent = els.drawer.querySelector('.sm-mini-cart__modal-content');
-  if (modalContent) modalContent.style.display = 'block';
+  // Remove Smootify's empty-cart class from both drawer and dialog
+  els.drawer.classList.remove('is-empty-cart');
+  const dialog = els.drawer.querySelector('dialog');
+  if (dialog) dialog.classList.remove('is-empty-cart');
 
-  const header = els.drawer.querySelector('.sm-mini-cart__header');
-  if (header) header.style.display = '';
+  // Force all content containers visible — Smootify CSS fights us
+  const targets = [
+    els.drawer.querySelector('.sm-mini-cart__modal-content'),
+    els.drawer.querySelector('.sm-mini-cart__header'),
+    els.drawer.querySelector('.sm-mini-cart-form-block'),
+    els.drawer.querySelector('.sm-mini-cart_form'),
+  ];
 
-  const formBlock = els.drawer.querySelector('.sm-mini-cart-form-block');
-  if (formBlock) formBlock.style.display = 'block';
-
-  const form = els.drawer.querySelector('.sm-mini-cart_form');
-  if (form) form.style.display = 'block';
+  targets.forEach(el => {
+    if (!el) return;
+    el.style.display = 'block';
+    el.style.visibility = 'visible';
+    el.style.opacity = '1';
+    el.style.pointerEvents = 'auto';
+  });
 }
 
 // ---- Render ----
@@ -163,7 +157,7 @@ function updateTotal() {
 
 function renderItems() {
   const container = els.items;
-  if (!container || !templateEl) return;
+  if (!container || !templateHTML) return;
 
   // Sort by ID for stable render order (PPcartSession may reorder internally)
   const items = [...getItems()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
@@ -171,10 +165,7 @@ function renderItems() {
   // Clear existing rendered items (but keep template hidden)
   container.querySelectorAll('[data-cart-rendered]').forEach(el => el.remove());
 
-  // Always remove Smootify's is-empty-cart — we manage visibility ourselves
-  els.drawer.classList.remove('is-empty-cart');
-
-  // Force content containers visible
+  // Aggressive state reset — remove is-empty-cart from drawer and dialog
   forceDrawerContentVisible();
 
   // Toggle empty state vs items/footer
@@ -192,7 +183,11 @@ function renderItems() {
   }
 
   items.forEach((item) => {
-    const clone = templateEl.cloneNode(true);
+    // Create item from sanitized HTML — no Web Component lifecycle fires
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = templateHTML;
+    const clone = wrapper.firstElementChild;
+    if (!clone) return;
     clone.setAttribute('data-cart-rendered', '');
     clone.removeAttribute('data-cart');
     clone.style.display = 'block';
@@ -268,6 +263,9 @@ function renderItems() {
 
   updateCount();
   updateTotal();
+
+  // Delayed re-force — catch any Smootify async reactions to our DOM changes
+  setTimeout(() => forceDrawerContentVisible(), 100);
 }
 
 // ---- Actions ----
@@ -292,10 +290,18 @@ function handleDecrement(variantId) {
 
 function handleRemove(variantId) {
   if (!variantId) return;
+  const session = getSession();
+  if (!session) return;
 
-  // Add to removed set — getItems() will filter these out
-  removedIds.add(String(variantId));
-  saveRemovedIds();
+  // Filter out the removed item and save directly to PPcartSession
+  const filtered = (session.items || []).filter(i => String(i.id) !== String(variantId));
+  if (typeof session.save === 'function') {
+    session.save(filtered);
+  } else {
+    // Fallback: overwrite items array directly
+    session.items = filtered;
+  }
+
   delete itemDisplayData[variantId];
   renderItems();
 }
@@ -438,10 +444,6 @@ function handleAddToCart(button) {
     item.sellingPlan = sellingPlanId;
   }
 
-  // Clear from removed set if re-adding
-  removedIds.delete(String(variantId));
-  saveRemovedIds();
-
   // Push to PreProduct cart
   if (typeof session.push === 'function') {
     session.push(item);
@@ -501,7 +503,7 @@ function onCartClick(e) {
       break;
     case 'add':
       e.preventDefault();
-      e.stopPropagation();
+      e.stopImmediatePropagation();
       handleAddToCart(target);
       break;
     case 'increment':
@@ -571,10 +573,19 @@ export function initCart(scope) {
 
   els.items = q('items', els.drawer);
 
-  // Grab the template item and hide it
-  templateEl = q('item-template', els.drawer);
-  if (templateEl) {
-    templateEl.style.display = 'none';
+  // Grab the template item, sanitize it (strip Web Component tags to prevent
+  // Smootify's connectedCallback from firing), then hide the original
+  const rawTemplate = q('item-template', els.drawer);
+  if (rawTemplate) {
+    rawTemplate.style.display = 'none';
+    // Replace Web Component tags with plain divs so custom element lifecycle never fires
+    templateHTML = rawTemplate.outerHTML
+      .replace(/<cart-item\b/gi, '<div')
+      .replace(/<\/cart-item>/gi, '</div>')
+      .replace(/<quantity-input\b/gi, '<div')
+      .replace(/<\/quantity-input>/gi, '</div>')
+      .replace(/<box-item\b/gi, '<div')
+      .replace(/<\/box-item>/gi, '</div>');
   }
 
   // Hide Smootify elements we don't need
@@ -616,9 +627,9 @@ export function initCart(scope) {
 
     const form = dialog.querySelector('form');
     if (form) {
-      const onSubmit = (e) => e.preventDefault();
-      form.addEventListener('submit', onSubmit);
-      listeners.push(['submit', onSubmit, form]);
+      const onSubmit = (e) => { e.preventDefault(); e.stopImmediatePropagation(); };
+      form.addEventListener('submit', onSubmit, true);
+      listeners.push(['submit', onSubmit, form, true]);
     }
   }
 
@@ -627,11 +638,12 @@ export function initCart(scope) {
   productForms.forEach(form => {
     const onSubmit = (e) => {
       e.preventDefault();
+      e.stopImmediatePropagation();
       const addBtn = form.querySelector('[data-cart="add"]');
       if (addBtn) handleAddToCart(addBtn);
     };
-    form.addEventListener('submit', onSubmit);
-    listeners.push(['submit', onSubmit, form]);
+    form.addEventListener('submit', onSubmit, true);
+    listeners.push(['submit', onSubmit, form, true]);
   });
 
   // Track Smootify variant changes
@@ -659,7 +671,7 @@ export function destroyCart() {
   });
   listeners = [];
   els = {};
-  templateEl = null;
+  templateHTML = '';
   ppReady = false;
   selectedVariant = null;
   // Don't clear itemDisplayData — persist across page transitions
