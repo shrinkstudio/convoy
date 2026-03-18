@@ -6,11 +6,29 @@
 // Theme flash prevention — runs immediately at bundle load time
 import './theme-toggle.js';
 
-// Hide subscription swatches instantly via CSS to prevent layout jolt
-// Injected before DOM renders so swatches never visibly paint
-const ssStyle = document.createElement('style');
-ssStyle.textContent = 'subscription-swatches{position:absolute!important;opacity:0!important;pointer-events:none!important;height:0!important;overflow:hidden!important}';
-(document.head || document.documentElement).appendChild(ssStyle);
+// Prevent all Smootify hydration flashes — hide product content until ready,
+// then fade in. Nav/footer stay visible so the page doesn't feel blank.
+const readyStyle = document.createElement('style');
+readyStyle.textContent = [
+  'subscription-swatches{position:absolute!important;opacity:0!important;pointer-events:none!important;height:0!important;overflow:hidden!important}',
+  'smootify-product{opacity:0;transition:opacity .3s ease}',
+  'smootify-product.sm-ready{opacity:1}',
+].join('');
+(document.head || document.documentElement).appendChild(readyStyle);
+
+// Reveal each product card once Smootify has populated it
+window.addEventListener('smootify:product_loaded', () => {
+  document.querySelectorAll('smootify-product:not(.sm-ready)').forEach(el => {
+    // Check if title or price has been injected
+    const hasContent = el.querySelector('[product="title"]')?.textContent?.trim()
+      || el.querySelector('[data-prop="price"]')?.textContent?.trim();
+    if (hasContent) el.classList.add('sm-ready');
+  });
+});
+// Fallback — reveal everything after 4s in case event doesn't fire
+setTimeout(() => {
+  document.querySelectorAll('smootify-product:not(.sm-ready)').forEach(el => el.classList.add('sm-ready'));
+}, 4000);
 
 // Core init system — imports and registers all components
 import './transitions.js';
