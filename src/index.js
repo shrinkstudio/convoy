@@ -22,7 +22,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }).observe(document.body, { childList: true, subtree: true });
 
   // Redraw Webflow sliders after Smootify injects product media slides
+  // + Auto-select the Deposit selling plan tab on product pages
   window.addEventListener('smootify:product_loaded', () => {
     if (window.Webflow) window.Webflow.require('slider').redraw();
+
+    // Click the "Deposit" tab in subscription swatches
+    document.querySelectorAll('.sm-subscription-tab_option-group').forEach(tab => {
+      if (tab.textContent.trim() === 'Deposit') tab.click();
+    });
   });
 });
