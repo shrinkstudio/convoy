@@ -27,10 +27,15 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Auto-select Deposit selling plan — watch for Smootify to hydrate the tabs
-  const swatchEl = document.querySelector('subscription-swatches');
-  if (swatchEl) {
+  // Prevent hash jumps from subscription swatch tab clicks
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('.sm-subscription-tab_option-group');
+    if (link) e.preventDefault();
+  }, true);
+
+  // Handle all subscription-swatches on the page (product page + listing cards)
+  document.querySelectorAll('subscription-swatches').forEach((swatchEl) => {
     new MutationObserver((_, obs) => {
-      // Find the Deposit tab after Smootify populates it
       const tabs = swatchEl.querySelectorAll('.sm-subscription-tab_option-group');
       let depositTab = null;
       tabs.forEach(t => { if (t.textContent.trim() === 'Deposit') depositTab = t; });
@@ -38,17 +43,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
       obs.disconnect();
 
-      // Simulate a real user click on the Deposit link block
       setTimeout(() => {
         const click = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
         depositTab.dispatchEvent(click);
 
-        // Then click the radio label inside the active pane
         setTimeout(() => {
           const label = swatchEl.querySelector('.sm-subscription-tab_pane.w--tab-active .sm-radio-label');
           if (label) label.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
         }, 200);
       }, 100);
     }).observe(swatchEl, { childList: true, subtree: true, characterData: true });
-  }
+  });
 });
