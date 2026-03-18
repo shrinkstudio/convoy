@@ -6,6 +6,12 @@
 // Theme flash prevention — runs immediately at bundle load time
 import './theme-toggle.js';
 
+// Hide subscription swatches instantly via CSS to prevent layout jolt
+// Injected before DOM renders so swatches never visibly paint
+const ssStyle = document.createElement('style');
+ssStyle.textContent = 'subscription-swatches{position:absolute!important;opacity:0!important;pointer-events:none!important;height:0!important;overflow:hidden!important}';
+(document.head || document.documentElement).appendChild(ssStyle);
+
 // Core init system — imports and registers all components
 import './transitions.js';
 
