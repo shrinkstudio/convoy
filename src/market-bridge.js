@@ -1,12 +1,10 @@
 // -----------------------------------------
 // MARKET BRIDGE — Connects Smootify Markets Switcher to Webflow Localization
 //
-// Three jobs:
+// Two jobs:
 // 1. On page load, force Smootify market to match the URL locale
 //    (overrides Smootify's geo-detection)
 // 2. On dropdown click, redirect to the correct Webflow locale
-// 3. On /de/ pages, intercept clicks on internal links missing /de/
-//    prefix and redirect (catches Smootify-injected links too)
 //
 // Smootify dropdown structure:
 //   .sm-country_dropdown-list
@@ -55,49 +53,6 @@ function syncMarketOnLoad() {
   }, { once: true });
 }
 
-// --- Job 3: Intercept clicks on /de/ pages to maintain locale prefix ---
-function interceptLinksForLocale() {
-  const locale = getCurrentLocale();
-  if (locale !== 'de') return;
-
-  const origin = window.location.origin;
-
-  document.addEventListener('click', (e) => {
-    const anchor = e.target.closest('a[href]');
-    if (!anchor) return;
-
-    const href = anchor.getAttribute('href');
-    if (!href) return;
-
-    // Skip: anchors, javascript:, mailto:, tel:, external links
-    if (href.startsWith('#') || href.startsWith('javascript:')
-        || href.startsWith('mailto:') || href.startsWith('tel:')) return;
-
-    // Handle full URLs on same origin
-    if (href.startsWith('http')) {
-      try {
-        const url = new URL(href);
-        if (url.origin !== origin) return; // external
-        // Same origin but missing /de/ prefix
-        if (!url.pathname.startsWith('/de/') && url.pathname !== '/de') {
-          e.preventDefault();
-          window.location.href = '/de' + url.pathname + url.search + url.hash;
-        }
-      } catch { return; }
-      return;
-    }
-
-    // Skip links already prefixed
-    if (href.startsWith('/de/') || href === '/de') return;
-
-    // Relative paths starting with /
-    if (href.startsWith('/')) {
-      e.preventDefault();
-      window.location.href = '/de' + href;
-    }
-  });
-}
-
 // --- Job 2: Dropdown click → redirect to correct locale ---
 function bindDropdownSwitcher() {
   const dropdownList = document.querySelector('.sm-country_dropdown-list');
@@ -123,7 +78,6 @@ function bindDropdownSwitcher() {
 
 export function initMarketBridge() {
   syncMarketOnLoad();
-  interceptLinksForLocale();
   bindDropdownSwitcher();
 }
 
