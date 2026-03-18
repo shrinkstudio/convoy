@@ -53,7 +53,13 @@ export function initMarketBridge() {
     // £ = UK/English, € (or anything else) = EU/German
     const targetLocale = symbol === '£' ? 'en' : 'de';
 
-    // Small delay to let Smootify process the market switch first
+    // Tell Smootify to switch language before we redirect
+    // so it doesn't cache the wrong language across the page load
+    if (typeof Smootify !== 'undefined' && Smootify.changeMarketLanguage) {
+      Smootify.changeMarketLanguage(targetLocale === 'de' ? 'DE' : 'EN');
+    }
+
+    // Small delay to let Smootify process, then redirect
     setTimeout(() => redirectToLocale(targetLocale), 150);
   });
 }
