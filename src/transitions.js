@@ -17,7 +17,6 @@ import { initParallax } from './parallax.js';
 import { initStackingCards } from './stacking-cards.js';
 import { initFooterParallax } from './footer-parallax.js';
 import { initCopyClip } from './copy-clip.js';
-import { initLocaleSwitcher } from './locale-switcher.js';
 import { initHoverList } from './hover-list.js';
 
 const has = (s) => !!document.querySelector(s);
@@ -59,7 +58,6 @@ function initAll() {
   if (has('[data-footer-parallax]'))    initFooterParallax(document);
   if (has('[data-footer-year]'))        initFooterYear(document);
   if (has('[data-copy="trigger"]'))     initCopyClip(document);
-  if (has('.nav'))                      initLocaleSwitcher(document);
   if (has('[data-hover-list]'))         initHoverList(document);
 }
 
