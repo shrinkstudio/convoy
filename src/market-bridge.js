@@ -7,21 +7,12 @@
 // Smootify dropdown structure:
 //   .sm-country_dropdown-list
 //     a.sm-country_dropdown-link
-//       span.sm-country[data-prop="name"]  → country name (e.g. "Germany")
+//       span.sm-country[data-prop="name"]  → country name (translated!)
 //       span.sm-currency-symbol[data-prop="currency-symbol"] → "€" / "£"
+//
+// We match on currency symbol (language-independent) rather than country
+// name, since Smootify translates names based on current market language.
 // -----------------------------------------
-
-// Countries in the Europe market that should route to /de/
-const DE_COUNTRIES = new Set([
-  'germany', 'deutschland',
-  'austria', 'österreich',
-  'switzerland', 'schweiz',
-]);
-
-// Countries that stay on root / (English)
-const EN_COUNTRIES = new Set([
-  'united kingdom', 'uk',
-]);
 
 function stripLocalePrefix(path) {
   if (path.startsWith('/de/')) return path.slice(3);
@@ -47,15 +38,6 @@ function redirectToLocale(targetLocale) {
   window.location.href = newPath + window.location.search;
 }
 
-function getLocaleForCountry(countryName) {
-  const name = countryName.toLowerCase().trim();
-  if (EN_COUNTRIES.has(name)) return 'en';
-  if (DE_COUNTRIES.has(name)) return 'de';
-  // Default: any other EU country → German locale (since that's the only secondary)
-  // If the currency is €, it's an EU country
-  return 'de';
-}
-
 export function initMarketBridge() {
   const dropdownList = document.querySelector('.sm-country_dropdown-list');
   if (!dropdownList) return;
@@ -64,12 +46,12 @@ export function initMarketBridge() {
     const link = e.target.closest('.sm-country_dropdown-link');
     if (!link) return;
 
-    // Read the country name from the Smootify-populated span
-    const nameEl = link.querySelector('.sm-country');
-    if (!nameEl) return;
+    const currencyEl = link.querySelector('.sm-currency-symbol');
+    if (!currencyEl) return;
 
-    const countryName = nameEl.textContent;
-    const targetLocale = getLocaleForCountry(countryName);
+    const symbol = currencyEl.textContent.trim();
+    // £ = UK/English, € (or anything else) = EU/German
+    const targetLocale = symbol === '£' ? 'en' : 'de';
 
     // Small delay to let Smootify process the market switch first
     setTimeout(() => redirectToLocale(targetLocale), 150);
