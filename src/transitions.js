@@ -4,7 +4,6 @@
 // Barba transition code preserved in git history.
 // -----------------------------------------
 
-import { initThemeToggle } from './theme-toggle.js';
 import { initAccordions } from './accordion.js';
 import { initTabs } from './tabs.js';
 import { initSliders } from './slider.js';
@@ -45,7 +44,6 @@ function initAll() {
   initSkipLink();
 
   // Per-page components
-  if (has('[data-theme-toggle]'))       initThemeToggle(document);
   if (has('details'))                   initAccordions(document);
   if (has('[data-tabs-component]'))     initTabs(document);
   if (has('[data-slider]'))             initSliders(document);

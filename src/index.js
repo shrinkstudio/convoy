@@ -3,9 +3,6 @@
 // Import all scripts here in the order they should run.
 // -----------------------------------------
 
-// Theme flash prevention — runs immediately at bundle load time
-import './theme-toggle.js';
-
 // Hide page content until Smootify is ready — fade in cleanly
 const readyStyle = document.createElement('style');
 readyStyle.textContent = '.page-main{opacity:0;transition:opacity .3s ease}.page-main.sm-ready{opacity:1}subscription-swatches{position:absolute!important;opacity:0!important;pointer-events:none!important;height:0!important;overflow:hidden!important}';
