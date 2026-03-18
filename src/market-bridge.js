@@ -5,7 +5,8 @@
 // 1. On page load, force Smootify market to match the URL locale
 //    (overrides Smootify's geo-detection)
 // 2. On dropdown click, redirect to the correct Webflow locale
-// 3. On /de/ pages, rewrite internal links missing the /de/ prefix
+// 3. On /de/ pages, intercept clicks on internal links missing /de/
+//    prefix and redirect (catches Smootify-injected links too)
 //
 // Smootify dropdown structure:
 //   .sm-country_dropdown-list
@@ -54,29 +55,46 @@ function syncMarketOnLoad() {
   }, { once: true });
 }
 
-// --- Job 3: Rewrite links on /de/ pages that are missing the prefix ---
-function rewriteLinksForLocale() {
+// --- Job 3: Intercept clicks on /de/ pages to maintain locale prefix ---
+function interceptLinksForLocale() {
   const locale = getCurrentLocale();
   if (locale !== 'de') return;
 
   const origin = window.location.origin;
 
-  document.querySelectorAll('a[href]').forEach(a => {
-    const href = a.getAttribute('href');
+  document.addEventListener('click', (e) => {
+    const anchor = e.target.closest('a[href]');
+    if (!anchor) return;
 
-    // Skip external links, anchors, javascript:, mailto:, tel:
-    if (!href || href.startsWith('#') || href.startsWith('javascript:')
-        || href.startsWith('mailto:') || href.startsWith('tel:')
-        || href.startsWith('http')) return;
+    const href = anchor.getAttribute('href');
+    if (!href) return;
 
-    // Skip links already prefixed with /de/
+    // Skip: anchors, javascript:, mailto:, tel:, external links
+    if (href.startsWith('#') || href.startsWith('javascript:')
+        || href.startsWith('mailto:') || href.startsWith('tel:')) return;
+
+    // Handle full URLs on same origin
+    if (href.startsWith('http')) {
+      try {
+        const url = new URL(href);
+        if (url.origin !== origin) return; // external
+        // Same origin but missing /de/ prefix
+        if (!url.pathname.startsWith('/de/') && url.pathname !== '/de') {
+          e.preventDefault();
+          window.location.href = '/de' + url.pathname + url.search + url.hash;
+        }
+      } catch { return; }
+      return;
+    }
+
+    // Skip links already prefixed
     if (href.startsWith('/de/') || href === '/de') return;
 
-    // Skip non-path links
-    if (!href.startsWith('/')) return;
-
-    // Prefix with /de
-    a.setAttribute('href', '/de' + href);
+    // Relative paths starting with /
+    if (href.startsWith('/')) {
+      e.preventDefault();
+      window.location.href = '/de' + href;
+    }
   });
 }
 
@@ -105,7 +123,7 @@ function bindDropdownSwitcher() {
 
 export function initMarketBridge() {
   syncMarketOnLoad();
-  rewriteLinksForLocale();
+  interceptLinksForLocale();
   bindDropdownSwitcher();
 }
 
