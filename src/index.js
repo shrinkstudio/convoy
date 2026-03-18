@@ -11,7 +11,11 @@ const readyStyle = document.createElement('style');
 readyStyle.textContent = '.page-main{opacity:0;transition:opacity .3s ease}.page-main.sm-ready{opacity:1}subscription-swatches{position:absolute!important;opacity:0!important;pointer-events:none!important;height:0!important;overflow:hidden!important}';
 (document.head || document.documentElement).appendChild(readyStyle);
 
-const reveal = () => document.querySelector('.page-main')?.classList.add('sm-ready');
+const reveal = () => {
+  window.scrollTo(0, 0);
+  if (window.location.hash) history.replaceState(null, '', window.location.pathname + window.location.search);
+  document.querySelector('.page-main')?.classList.add('sm-ready');
+};
 window.addEventListener('smootify:loaded', reveal, { once: true });
 setTimeout(reveal, 2000);
 
