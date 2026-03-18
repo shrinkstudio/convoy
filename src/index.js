@@ -38,17 +38,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
       obs.disconnect();
 
-      // 1. Click the Deposit tab to switch Webflow tabs
-      depositTab.click();
-
-      // 2. Find and check the radio inside the Deposit tab pane
+      // Simulate a real user click on the Deposit link block
       setTimeout(() => {
-        const radio = swatchEl.querySelector('.sm-subscription-tab_pane.w--tab-active input[type="radio"]');
-        if (radio && !radio.checked) {
-          radio.checked = true;
-          radio.dispatchEvent(new Event('change', { bubbles: true }));
-          radio.dispatchEvent(new Event('input', { bubbles: true }));
-        }
+        const click = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
+        depositTab.dispatchEvent(click);
+
+        // Then click the radio label inside the active pane
+        setTimeout(() => {
+          const label = swatchEl.querySelector('.sm-subscription-tab_pane.w--tab-active .sm-radio-label');
+          if (label) label.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        }, 200);
       }, 100);
     }).observe(swatchEl, { childList: true, subtree: true, characterData: true });
   }
