@@ -19,6 +19,19 @@ const reveal = () => {
 window.addEventListener('smootify:loaded', reveal, { once: true });
 setTimeout(reveal, 2000);
 
+// Fade out page on internal navigation
+document.addEventListener('click', (e) => {
+  const link = e.target.closest('a[href]');
+  if (!link) return;
+  const href = link.getAttribute('href');
+  if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || link.target === '_blank') return;
+  const main = document.querySelector('.page-main');
+  if (!main) return;
+  e.preventDefault();
+  main.classList.remove('sm-ready');
+  setTimeout(() => { window.location.href = href; }, 300);
+});
+
 // Core init system — imports and registers all components
 import './transitions.js';
 
