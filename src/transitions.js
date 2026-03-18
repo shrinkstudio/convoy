@@ -18,6 +18,7 @@ import { initStackingCards } from './stacking-cards.js';
 import { initFooterParallax } from './footer-parallax.js';
 import { initCopyClip } from './copy-clip.js';
 import { initHoverList } from './hover-list.js';
+import { initMarketBridge } from './market-bridge.js';
 
 const has = (s) => !!document.querySelector(s);
 
@@ -59,6 +60,7 @@ function initAll() {
   if (has('[data-footer-year]'))        initFooterYear(document);
   if (has('[data-copy="trigger"]'))     initCopyClip(document);
   if (has('[data-hover-list]'))         initHoverList(document);
+  if (has('.sm-market-switcher'))       initMarketBridge();
 }
 
 if (document.readyState === 'loading') {
