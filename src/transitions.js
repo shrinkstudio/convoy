@@ -11,7 +11,6 @@ import { initSliders } from './slider.js';
 import { initInlineVideos } from './inline-video.js';
 import { initModalDelegation, initModals } from './modal.js';
 import { initFontSizeDetect, initFooterYear, initSkipLink } from './utilities.js';
-import { initNavScrollHide } from './nav.js';
 import { initBunnyBackground } from './bunny-video.js';
 import { initParallax } from './parallax.js';
 import { initStackingCards } from './stacking-cards.js';
@@ -46,7 +45,6 @@ function initAll() {
   initSkipLink();
 
   // Per-page components
-  if (has('.nav'))                       initNavScrollHide(document);
   if (has('[data-theme-toggle]'))       initThemeToggle(document);
   if (has('details'))                   initAccordions(document);
   if (has('[data-tabs-component]'))     initTabs(document);
