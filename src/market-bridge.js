@@ -1,17 +1,17 @@
 // -----------------------------------------
 // MARKET BRIDGE — Connects Smootify Markets Switcher to Webflow Localization
-// When user picks a country in the Smootify dropdown, redirect to the
-// matching Webflow locale subdirectory. Smootify then auto-detects the
-// locale from the URL and switches the Shopify market.
+//
+// Three jobs:
+// 1. On page load, force Smootify market to match the URL locale
+//    (overrides Smootify's geo-detection)
+// 2. On dropdown click, redirect to the correct Webflow locale
+// 3. On /de/ pages, rewrite internal links missing the /de/ prefix
 //
 // Smootify dropdown structure:
 //   .sm-country_dropdown-list
 //     a.sm-country_dropdown-link
 //       span.sm-country[data-prop="name"]  → country name (translated!)
 //       span.sm-currency-symbol[data-prop="currency-symbol"] → "€" / "£"
-//
-// We match on currency symbol (language-independent) rather than country
-// name, since Smootify translates names based on current market language.
 // -----------------------------------------
 
 function stripLocalePrefix(path) {
@@ -38,7 +38,50 @@ function redirectToLocale(targetLocale) {
   window.location.href = newPath + window.location.search;
 }
 
-export function initMarketBridge() {
+// --- Job 1: Force Smootify market to match URL locale on load ---
+function syncMarketOnLoad() {
+  const locale = getCurrentLocale();
+  document.addEventListener('smootify:loaded', () => {
+    if (typeof Smootify === 'undefined') return;
+
+    if (locale === 'de') {
+      Smootify.changeCountryByIsoCode('DE');
+      Smootify.changeMarketLanguage('DE');
+    } else {
+      Smootify.changeCountryByIsoCode('GB');
+      Smootify.changeMarketLanguage('EN');
+    }
+  }, { once: true });
+}
+
+// --- Job 3: Rewrite links on /de/ pages that are missing the prefix ---
+function rewriteLinksForLocale() {
+  const locale = getCurrentLocale();
+  if (locale !== 'de') return;
+
+  const origin = window.location.origin;
+
+  document.querySelectorAll('a[href]').forEach(a => {
+    const href = a.getAttribute('href');
+
+    // Skip external links, anchors, javascript:, mailto:, tel:
+    if (!href || href.startsWith('#') || href.startsWith('javascript:')
+        || href.startsWith('mailto:') || href.startsWith('tel:')
+        || href.startsWith('http')) return;
+
+    // Skip links already prefixed with /de/
+    if (href.startsWith('/de/') || href === '/de') return;
+
+    // Skip non-path links
+    if (!href.startsWith('/')) return;
+
+    // Prefix with /de
+    a.setAttribute('href', '/de' + href);
+  });
+}
+
+// --- Job 2: Dropdown click → redirect to correct locale ---
+function bindDropdownSwitcher() {
   const dropdownList = document.querySelector('.sm-country_dropdown-list');
   if (!dropdownList) return;
 
@@ -50,18 +93,20 @@ export function initMarketBridge() {
     if (!currencyEl) return;
 
     const symbol = currencyEl.textContent.trim();
-    // £ = UK/English, € (or anything else) = EU/German
     const targetLocale = symbol === '£' ? 'en' : 'de';
 
-    // Tell Smootify to switch language before we redirect
-    // so it doesn't cache the wrong language across the page load
     if (typeof Smootify !== 'undefined' && Smootify.changeMarketLanguage) {
       Smootify.changeMarketLanguage(targetLocale === 'de' ? 'DE' : 'EN');
     }
 
-    // Small delay to let Smootify process, then redirect
     setTimeout(() => redirectToLocale(targetLocale), 150);
   });
+}
+
+export function initMarketBridge() {
+  syncMarketOnLoad();
+  rewriteLinksForLocale();
+  bindDropdownSwitcher();
 }
 
 export function destroyMarketBridge() {}
