@@ -22,13 +22,34 @@ document.addEventListener('DOMContentLoaded', () => {
   }).observe(document.body, { childList: true, subtree: true });
 
   // Redraw Webflow sliders after Smootify injects product media slides
-  // + Auto-select the Deposit selling plan tab on product pages
   window.addEventListener('smootify:product_loaded', () => {
     if (window.Webflow) window.Webflow.require('slider').redraw();
-
-    // Click the "Deposit" tab in subscription swatches
-    document.querySelectorAll('.sm-subscription-tab_option-group').forEach(tab => {
-      if (tab.textContent.trim() === 'Deposit') tab.click();
-    });
   });
+
+  // Auto-select Deposit selling plan — watch for Smootify to hydrate the tabs
+  const swatchEl = document.querySelector('subscription-swatches');
+  if (swatchEl) {
+    new MutationObserver((_, obs) => {
+      // Find the Deposit tab after Smootify populates it
+      const tabs = swatchEl.querySelectorAll('.sm-subscription-tab_option-group');
+      let depositTab = null;
+      tabs.forEach(t => { if (t.textContent.trim() === 'Deposit') depositTab = t; });
+      if (!depositTab) return;
+
+      obs.disconnect();
+
+      // 1. Click the Deposit tab to switch Webflow tabs
+      depositTab.click();
+
+      // 2. Find and check the radio inside the Deposit tab pane
+      setTimeout(() => {
+        const radio = swatchEl.querySelector('.sm-subscription-tab_pane.w--tab-active input[type="radio"]');
+        if (radio && !radio.checked) {
+          radio.checked = true;
+          radio.dispatchEvent(new Event('change', { bubbles: true }));
+          radio.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }, 100);
+    }).observe(swatchEl, { childList: true, subtree: true, characterData: true });
+  }
 });
