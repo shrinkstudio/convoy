@@ -27,11 +27,20 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Auto-select Deposit selling plan — watch for Smootify to hydrate the tabs
-  // Prevent hash jumps from subscription swatch tab clicks
-  document.addEventListener('click', (e) => {
-    const link = e.target.closest('.sm-subscription-tab_option-group');
-    if (link) e.preventDefault();
-  }, true);
+  // Strip hash jumps caused by Webflow tab anchors inside subscription swatches
+  const cleanUrl = window.location.href.split('#')[0];
+  window.addEventListener('hashchange', () => {
+    if (window.location.hash.includes('w-tabs')) {
+      history.replaceState(null, '', cleanUrl);
+    }
+  });
+
+  // Nuke any href on subscription tab links so they can't trigger scroll
+  const nukeTabHrefs = () => {
+    document.querySelectorAll('subscription-swatches a[href*="w-tabs"]').forEach(a => {
+      a.removeAttribute('href');
+    });
+  };
 
   // Handle all subscription-swatches on the page (product page + listing cards)
   document.querySelectorAll('subscription-swatches').forEach((swatchEl) => {
@@ -42,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!depositTab) return;
 
       obs.disconnect();
+      nukeTabHrefs();
 
       setTimeout(() => {
         const click = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
@@ -50,6 +60,8 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
           const label = swatchEl.querySelector('.sm-subscription-tab_pane.w--tab-active .sm-radio-label');
           if (label) label.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+          // Final cleanup — strip any hash that snuck through
+          if (window.location.hash) history.replaceState(null, '', cleanUrl);
         }, 200);
       }, 100);
     }).observe(swatchEl, { childList: true, subtree: true, characterData: true });
