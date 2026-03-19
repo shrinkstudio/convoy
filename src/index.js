@@ -3,6 +3,9 @@
 // Import all scripts here in the order they should run.
 // -----------------------------------------
 
+// Disable browser scroll restoration so hash changes can't jump the page
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
 // Hide page content until Smootify is ready — fade in cleanly
 const readyStyle = document.createElement('style');
 readyStyle.textContent = '.page-main{opacity:0;transition:opacity .3s ease}.page-main.sm-ready{opacity:1}subscription-swatches{position:absolute!important;opacity:0!important;pointer-events:none!important;height:0!important;overflow:hidden!important}';
@@ -73,8 +76,11 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
           const label = swatchEl.querySelector('.sm-subscription-tab_pane.w--tab-active .sm-radio-label');
           if (label) label.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-          // Final cleanup — strip any hash that snuck through
-          if (window.location.hash) history.replaceState(null, '', cleanUrl);
+          // Final cleanup — strip any hash that snuck through and reset scroll
+          if (window.location.hash) {
+            history.replaceState(null, '', cleanUrl);
+            window.scrollTo(0, 0);
+          }
         }, 200);
       }, 100);
     }).observe(swatchEl, { childList: true, subtree: true, characterData: true });
