@@ -13,9 +13,10 @@ function getLocale() {
   return 'en';
 }
 
-export function initKlaviyo() {
-  const form = document.querySelector('.klaviyo-form');
-  if (!form) return;
+function bindForm(form) {
+  // Strip Webflow form attributes so WF's JS doesn't also handle the submit
+  form.removeAttribute('data-wf-page-id');
+  form.removeAttribute('data-wf-element-id');
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -37,10 +38,10 @@ export function initKlaviyo() {
     }
 
     try {
-      const res = await fetch(`https://a.klaviyo.com/client/subscriptions?company_id=${KLAVIYO_COMPANY_ID}`, {
+      const res = await fetch(`https://a.klaviyo.com/client/subscriptions/?company_id=${KLAVIYO_COMPANY_ID}`, {
         method: 'POST',
         headers: {
-          'content-type': 'application/vnd.api+json',
+          'content-type': 'application/json',
           'revision': '2024-10-15',
         },
         body: JSON.stringify({
@@ -83,4 +84,8 @@ export function initKlaviyo() {
       }
     }
   });
+}
+
+export function initKlaviyo() {
+  document.querySelectorAll('.klaviyo-form').forEach(bindForm);
 }
