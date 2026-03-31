@@ -17,6 +17,7 @@ import { initFooterParallax } from './footer-parallax.js';
 import { initCopyClip } from './copy-clip.js';
 import { initHoverList } from './hover-list.js';
 import { initMarketBridge } from './market-bridge.js';
+import { initFlickitySliders } from './flickity-slider.js';
 
 const has = (s) => !!document.querySelector(s);
 
@@ -57,6 +58,7 @@ function initAll() {
   if (has('[data-copy="trigger"]'))     initCopyClip(document);
   if (has('[data-hover-list]'))         initHoverList(document);
   if (has('.sm-market-switcher'))       initMarketBridge();
+  if (has('[data-flickity-type="cards"]')) initFlickitySliders(document);
 }
 
 if (document.readyState === 'loading') {
