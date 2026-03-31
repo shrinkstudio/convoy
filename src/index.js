@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('hashchange', () => {
     if (window.location.hash.includes('w-tabs')) {
       history.replaceState(null, '', cleanUrl);
+      window.scrollTo(0, 0);
     }
   });
 
@@ -61,13 +62,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // Handle all subscription-swatches on the page (product page + listing cards)
   document.querySelectorAll('subscription-swatches').forEach((swatchEl) => {
     new MutationObserver((_, obs) => {
+      // Strip tab hrefs on every mutation — catches all swatches, not just Deposit ones
+      nukeTabHrefs();
+
       const tabs = swatchEl.querySelectorAll('.sm-subscription-tab_option-group');
       let depositTab = null;
       tabs.forEach(t => { if (t.textContent.trim() === 'Deposit') depositTab = t; });
       if (!depositTab) return;
 
       obs.disconnect();
-      nukeTabHrefs();
 
       setTimeout(() => {
         const click = new MouseEvent('click', { bubbles: true, cancelable: true, view: window });
